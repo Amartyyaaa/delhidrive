@@ -35,13 +35,18 @@ const SILHOUETTES = {
 export function CarArt({ car, className, showPlate = false }) {
   const [broken, setBroken] = useState(false);
   const shape = SILHOUETTES[car?.category] || SILHOUETTES.Sedan;
-  const paint = car?.colorHex || '#4f46e5';
+  const paint = car?.colorHex || '#128A4B';
   const uid = (car?.id || 'x').replace(/[^a-z0-9]/gi, '');
 
   if (car?.photo && !broken) {
+    // Stored photos are repo-relative ("cars/swift.jpg") so they keep working
+    // whether the site is served from a domain root or a /repo/ sub-path.
+    const src = /^(https?:|data:|blob:|\/)/.test(car.photo)
+      ? car.photo
+      : import.meta.env.BASE_URL + car.photo;
     return (
       <img
-        src={car.photo}
+        src={src}
         alt={car.name}
         loading="lazy"
         onError={() => setBroken(true)}

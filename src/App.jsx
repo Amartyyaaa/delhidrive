@@ -13,6 +13,9 @@ import { useStore } from './lib/store';
 import { Spinner, Button } from './components/ui';
 import { featureAuditPdf } from './lib/pdf';
 import { supabaseReady } from './lib/supabase';
+import { Logo } from './components/Logo';
+import { supportWhatsappUrl } from './lib/whatsapp';
+import { COMPANY_PHONE } from './lib/config';
 
 function Protected({ children, adminOnly }) {
   const { user, isAdmin, loading } = useAuth();
@@ -42,12 +45,7 @@ function Footer() {
     <footer className="mt-20 border-t border-white/[0.07] bg-ink-950/60">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-4">
         <div className="md:col-span-2">
-          <div className="flex items-center gap-2.5">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-500">
-              <Car size={18} className="text-white" />
-            </span>
-            <span className="font-display text-[15px] font-extrabold text-white">DelhiDrive</span>
-          </div>
+          <Logo className="max-w-[15rem]" />
           <p className="mt-3 max-w-sm text-[13px] leading-relaxed text-slate-400">
             Self-drive car rentals across Delhi NCR. Zero-depreciation cover, doorstep delivery, live GPS
             telematics and paperwork that generates itself.
@@ -97,7 +95,12 @@ function Footer() {
         <div>
           <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Support</p>
           <ul className="space-y-2 text-[13px] text-slate-400">
-            <li>24×7 helpline · +91 11 4000 8080</li>
+            <li>24×7 helpline · {COMPANY_PHONE}</li>
+            <li>
+              <a href={supportWhatsappUrl()} target="_blank" rel="noopener noreferrer" className="link-quiet">
+                Chat with us on WhatsApp →
+              </a>
+            </li>
             <li>support@delhidrive.in</li>
             <li>Cyber Hub, Gurugram 122002</li>
           </ul>

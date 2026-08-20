@@ -77,6 +77,7 @@ export function useTelematics({ car, seed = 'demo', live = true, speedLimit = 10
     alerts: [],
     maxSpeed: 0,
     samples: [],
+    trail: [],
   }));
 
   const alertGuard = useRef({ overspeed: 0, tyre: false, fuel: false });
@@ -163,6 +164,7 @@ export function useTelematics({ car, seed = 'demo', live = true, speedLimit = 10
           alerts,
           maxSpeed: Math.max(prev.maxSpeed, speed),
           samples: [...prev.samples, speed].slice(-48),
+          trail: [...prev.trail, { lat: position.lat, lng: position.lng }].slice(-60),
         };
       });
     };

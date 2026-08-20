@@ -34,6 +34,9 @@ import {
 import { inr, cx, fmtDuration, toLocalInput } from '../lib/format';
 import { Button, Badge, Field, Input, Toggle, Row, Spinner } from '../components/ui';
 import CarArt from '../components/CarArt';
+import PhoneVerify from '../components/PhoneVerify';
+import { sendBookingToWhatsapp } from '../lib/whatsapp';
+import { msg91Ready } from '../lib/otp';
 
 const ADDON_ICONS = { Ticket, Baby, Navigation, UserPlus, Fuel };
 const PAY_ICONS = { QrCode, CreditCard, Landmark, Banknote };
@@ -80,6 +83,7 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '' });
   const [placing, setPlacing] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -118,7 +122,7 @@ export default function Checkout() {
   );
 
   const hours = rentalHours(pickupMs, returnMs);
-  const minHours = settings.minRentalHours || 8;
+  const minHours = settings.minRentalHours || 4;
   const dateError =
     returnMs <= pickupMs
       ? 'Return time must be after pickup.'
@@ -205,6 +209,7 @@ export default function Checkout() {
         customerName: customer.name.trim(),
         customerEmail: customer.email.trim(),
         customerPhone: customer.phone.trim(),
+        phoneVerified,
         pickupMs,
         returnMs,
         locationId,
@@ -221,6 +226,15 @@ export default function Checkout() {
         createdAtMs: Date.now(),
       };
       const id = await createBooking(booking);
+
+      // Hand the booking summary to operations on WhatsApp. Opened straight
+      // after the click so the browser still counts it as user-initiated.
+      const opened = sendBookingToWhatsapp(booking, car);
+      if (!opened) {
+        toast('Allow pop-ups to send the booking to WhatsApp, or open it from My Bookings.', {
+          type: 'warning',
+        });
+      }
 
       push(
         'Booking confirmed · ' + ref,
@@ -479,6 +493,15 @@ export default function Checkout() {
                 />
               </Field>
             </div>
+
+            <div className="mt-3">
+              <PhoneVerify
+                phone={customer.phone}
+                verified={phoneVerified}
+                onVerified={setPhoneVerified}
+              />
+            </div>
+
             {myKyc?.status !== 'Verified' && (
               <p className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3.5 py-2.5 text-[12.5px] text-amber-200">
                 You can book now, but handover needs a verified profile. Upload your licence and Aadhaar from{' '}
@@ -571,8 +594,12 @@ export default function Checkout() {
             <div className="mt-3.5 divide-y divide-white/[0.06]">
               <div className="pb-2">
                 <Row
-                  k={`${inr(quote.rate)} × ${quote.days} day${quote.days > 1 ? 's' : ''}`}
-                  v={inr(quote.rate * quote.days)}
+                  k={
+                    quote.charge.tier === 'daily'
+                      ? `${inr(quote.charge.unitRate)} × ${quote.charge.label}`
+                      : quote.charge.label
+                  }
+                  v={inr(quote.charge.amount)}
                 />
                 {quote.surgeAmount > 0 && (
                   <Row

@@ -6,8 +6,8 @@ import autoTable from 'jspdf-autotable';
 import { LOCATIONS } from './pricing';
 import { fmtDateTime, fmtDate } from './format';
 
-const NAVY = [13, 17, 32];
-const INDIGO = [79, 70, 229];
+const NAVY = [10, 10, 10]; // near-black
+const INDIGO = [18, 138, 75]; // DelhiDrive green
 const SLATE = [100, 116, 139];
 const LIGHT = [226, 232, 240];
 

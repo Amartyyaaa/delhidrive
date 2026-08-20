@@ -4,23 +4,26 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Neutral blacks — the logo sits on pure black, so the greys stay
+        // untinted rather than the old navy cast.
         ink: {
-          950: '#070a14',
-          900: '#0d1120',
-          850: '#12172a',
-          800: '#181e35',
-          700: '#232a45',
-          600: '#333c5e',
+          950: '#050505',
+          900: '#0d0f0e',
+          850: '#141817',
+          800: '#1b201e',
+          700: '#28302c',
+          600: '#3a453f',
         },
+        // Sampled from the DELHI wordmark in the logo.
         brand: {
-          50: '#eef1ff',
-          100: '#e0e5ff',
-          200: '#c7cfff',
-          300: '#a5aeff',
-          400: '#8484fb',
-          500: '#4f46e5',
-          600: '#4338ca',
-          700: '#3730a3',
+          50: '#e9f7ef',
+          100: '#cdedda',
+          200: '#9bdcb7',
+          300: '#5cc78d',
+          400: '#2fae6a',
+          500: '#128A4B',
+          600: '#0d6f3c',
+          700: '#0a562f',
         },
         saffron: {
           400: '#ffb545',
@@ -33,8 +36,8 @@ export default {
         display: ['Sora', 'Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        glow: '0 0 0 1px rgba(129,140,248,0.25), 0 18px 50px -20px rgba(79,70,229,0.55)',
-        card: '0 10px 40px -24px rgba(2,6,23,0.9)',
+        glow: '0 0 0 1px rgba(47,174,106,0.28), 0 18px 50px -20px rgba(18,138,75,0.55)',
+        card: '0 10px 40px -24px rgba(0,0,0,0.95)',
       },
       keyframes: {
         'fade-up': {

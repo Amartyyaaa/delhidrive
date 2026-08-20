@@ -25,7 +25,7 @@ const BLANK = {
   deposit: 3000,
   plate: '',
   hub: 'cp',
-  colorHex: '#4f46e5',
+  colorHex: '#128A4B',
   terrain: ['City'],
   zeroDep: true,
   available: true,

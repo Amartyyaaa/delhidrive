@@ -19,6 +19,7 @@ import { useNotify } from '../lib/notify';
 import { supabaseReady } from '../lib/supabase';
 import { cx, initials } from '../lib/format';
 import { Button, Badge } from './ui';
+import { LogoMark } from './Logo';
 
 const LINKS = [
   { to: '/fleet', label: 'Fleet', icon: LayoutGrid },
@@ -45,15 +46,16 @@ export default function Nav() {
     <header className="sticky top-0 z-50 border-b border-white/[0.07] bg-ink-950/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6">
         <Link to="/" className="flex shrink-0 items-center gap-2.5" onClick={() => setOpen(false)}>
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-500 shadow-[0_8px_24px_-8px_rgba(79,70,229,0.9)]">
-            <Car size={18} className="text-white" />
+          <span className="h-9 w-9 shrink-0 overflow-hidden rounded-xl shadow-[0_8px_24px_-8px_rgba(18,138,75,0.9)]">
+            <LogoMark />
           </span>
           <span className="leading-none">
-            <span className="block font-display text-[15px] font-extrabold tracking-tight text-white">
-              DelhiDrive
+            <span className="block font-display text-[15px] font-extrabold tracking-tight">
+              <span className="text-brand-400">DELHI</span>
+              <span className="text-white">DRIVE</span>
             </span>
             <span className="block text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">
-              Self-Drive Rentals
+              Move Ahead To Destiny
             </span>
           </span>
         </Link>

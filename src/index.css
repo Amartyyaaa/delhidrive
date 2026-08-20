@@ -16,9 +16,9 @@
   body {
     @apply bg-ink-950 font-sans text-slate-200 antialiased;
     background-image:
-      radial-gradient(60rem 40rem at 12% -10%, rgba(79, 70, 229, 0.22), transparent 60%),
-      radial-gradient(50rem 35rem at 92% 4%, rgba(14, 165, 233, 0.14), transparent 60%),
-      radial-gradient(45rem 30rem at 50% 105%, rgba(245, 158, 11, 0.08), transparent 60%);
+      radial-gradient(60rem 40rem at 12% -10%, rgba(18, 138, 75, 0.28), transparent 60%),
+      radial-gradient(50rem 35rem at 92% 4%, rgba(47, 174, 106, 0.14), transparent 62%),
+      radial-gradient(45rem 30rem at 50% 105%, rgba(18, 138, 75, 0.10), transparent 60%);
     background-attachment: fixed;
   }
 
@@ -62,7 +62,7 @@
     appearance: none;
     height: 6px;
     border-radius: 999px;
-    background: linear-gradient(90deg, #4f46e5 var(--pct, 50%), rgba(148, 163, 184, 0.22) var(--pct, 50%));
+    background: linear-gradient(90deg, #128A4B var(--pct, 50%), rgba(148, 163, 184, 0.22) var(--pct, 50%));
     outline: none;
   }
   input[type='range']::-webkit-slider-thumb {
@@ -72,21 +72,21 @@
     width: 18px;
     border-radius: 999px;
     background: #fff;
-    border: 4px solid #4f46e5;
+    border: 4px solid #128A4B;
     cursor: grab;
-    box-shadow: 0 2px 10px rgba(79, 70, 229, 0.55);
+    box-shadow: 0 2px 10px rgba(18, 138, 75, 0.6);
   }
   input[type='range']::-moz-range-thumb {
     height: 14px;
     width: 14px;
     border-radius: 999px;
     background: #fff;
-    border: 4px solid #4f46e5;
+    border: 4px solid #128A4B;
     cursor: grab;
   }
 
   :focus-visible {
-    outline: 2px solid rgba(129, 140, 248, 0.85);
+    outline: 2px solid rgba(47, 174, 106, 0.9);
     outline-offset: 2px;
   }
 }

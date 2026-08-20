@@ -67,7 +67,7 @@ export const DEFAULT_SETTINGS = {
   festiveSurge: 1.25,
   festiveEnabled: false,
   cancellationWindowHours: 24,
-  minRentalHours: 8,
+  minRentalHours: 4,
   overspeedLimitKph: 100,
 };
 
@@ -75,6 +75,35 @@ export const DEFAULT_SETTINGS = {
 export function rentalDays(pickupMs, returnMs) {
   const ms = Math.max(0, returnMs - pickupMs);
   return Math.max(1, Math.ceil(ms / 86400000));
+}
+
+/**
+ * Short rentals are billed on 6-hour and 12-hour slabs rather than a full day,
+ * matching how the fleet is actually priced. Anything longer falls back to the
+ * daily rate × number of days.
+ *
+ * @returns {{amount, label, tier, unitRate, units}}
+ */
+export function baseCharge(car, pickupMs, returnMs) {
+  const hours = rentalHours(pickupMs, returnMs);
+  const daily = Number(car?.rate) || 0;
+  const r6 = Number(car?.rate6h) || 0;
+  const r12 = Number(car?.rate12h) || 0;
+
+  if (r6 && hours > 0 && hours <= 6) {
+    return { amount: r6, label: '6-hour slab', tier: '6h', unitRate: r6, units: 1 };
+  }
+  if (r12 && hours > 6 && hours <= 12) {
+    return { amount: r12, label: '12-hour slab', tier: '12h', unitRate: r12, units: 1 };
+  }
+  const days = rentalDays(pickupMs, returnMs);
+  return {
+    amount: daily * days,
+    label: `${days} day${days > 1 ? 's' : ''}`,
+    tier: 'daily',
+    unitRate: daily,
+    units: days,
+  };
 }
 
 export function rentalHours(pickupMs, returnMs) {
@@ -145,16 +174,19 @@ export function computeQuote({
   const rate = Number(car?.rate) || 0;
 
   const { multiplier: surge, reasons: surgeReasons } = surgeFor(pickupMs, s);
-  const baseRaw = rate * days;
+  const charge = baseCharge(car, pickupMs, returnMs);
+  const baseRaw = charge.amount;
   const base = Math.round(baseRaw * surge);
   const surgeAmount = base - baseRaw;
 
+  // Per-day add-ons are billed for at least one day even on a short slab.
+  const addonDays = charge.tier === 'daily' ? days : 1;
   const addonLines = ADDONS.filter((a) => addons[a.id]).map((a) => ({
     id: a.id,
     label: a.label,
-    qty: a.unit === 'day' ? days : 1,
+    qty: a.unit === 'day' ? addonDays : 1,
     unitPrice: a.price,
-    amount: a.unit === 'day' ? a.price * days : a.price,
+    amount: a.unit === 'day' ? a.price * addonDays : a.price,
   }));
   const addonTotal = addonLines.reduce((sum, l) => sum + l.amount, 0);
 
@@ -179,6 +211,7 @@ export function computeQuote({
     days,
     hours,
     rate,
+    charge,
     surge,
     surgeReasons,
     surgeAmount,

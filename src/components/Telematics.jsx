@@ -17,6 +17,7 @@ import {
 import { useTelematics, ROUTE, ROUTE_D } from '../lib/telematics';
 import { cx } from '../lib/format';
 import { Badge } from './ui';
+import LiveMap from './LiveMap';
 
 function SpeedGauge({ speed, limit }) {
   const max = 160;
@@ -93,6 +94,50 @@ function Metric({ icon: Icon, label, value, sub, tone = 'text-white' }) {
   );
 }
 
+/** Schematic route map, used when Google Maps is unavailable. */
+function SchematicMap({ t }) {
+  return (
+    <svg viewBox="0 0 100 70" className="h-56 w-full sm:h-72">
+      <defs>
+        <pattern id="grid" width="6" height="6" patternUnits="userSpaceOnUse">
+          <path d="M6 0 L0 0 0 6" fill="none" stroke="rgba(148,163,184,0.08)" strokeWidth="0.3" />
+        </pattern>
+        <radialGradient id="pulse" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#2FAE6A" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="#2FAE6A" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      <rect width="100" height="70" fill="#0b0d0c" />
+      <rect width="100" height="70" fill="url(#grid)" />
+
+      {/* the Yamuna, for orientation */}
+      <path
+        d="M92 2 C 88 14, 94 24, 89 34 C 85 44, 90 56, 86 68"
+        fill="none"
+        stroke="#12372a"
+        strokeWidth="2.2"
+        opacity="0.8"
+      />
+
+      <path d={ROUTE_D} fill="none" stroke="#1d2320" strokeWidth="3.4" strokeLinejoin="round" />
+      <path d={ROUTE_D} fill="none" stroke="#128A4B" strokeWidth="1.1" strokeDasharray="2.5 2" opacity="0.85" />
+
+      {ROUTE.map((p) => (
+        <circle key={p.name} cx={p.x} cy={p.y} r="1.05" fill="#64748b" />
+      ))}
+
+      <g transform={`translate(${t.position.x} ${t.position.y})`}>
+        <circle r="6" fill="url(#pulse)" />
+        <circle r="2.9" fill="#128A4B" opacity="0.28" />
+        <g transform={`rotate(${t.heading})`}>
+          <path d="M0 -2.6 L1.9 2.2 L0 1.2 L-1.9 2.2 Z" fill="#ffffff" />
+        </g>
+      </g>
+    </svg>
+  );
+}
+
 export default function Telematics({ booking, car, settings }) {
   const limit = settings?.overspeedLimitKph || 100;
   const t = useTelematics({ car, seed: booking.id || booking.ref, live: true, speedLimit: limit });
@@ -102,60 +147,17 @@ export default function Telematics({ booking, car, settings }) {
 
   return (
     <div className="space-y-4">
-      {/* map */}
+      {/* map — real Google Map when a key is set, schematic SVG otherwise */}
       <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-ink-950">
-        <svg viewBox="0 0 100 70" className="h-56 w-full sm:h-72">
-          <defs>
-            <pattern id="grid" width="6" height="6" patternUnits="userSpaceOnUse">
-              <path d="M6 0 L0 0 0 6" fill="none" stroke="rgba(148,163,184,0.08)" strokeWidth="0.3" />
-            </pattern>
-            <radialGradient id="pulse" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#818cf8" stopOpacity="0.55" />
-              <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
-            </radialGradient>
-          </defs>
+        <LiveMap
+          position={{ lat: t.position.lat, lng: t.position.lng }}
+          heading={t.heading}
+          trail={t.trail}
+          className="h-56 w-full sm:h-72"
+          fallback={<SchematicMap t={t} />}
+        />
 
-          <rect width="100" height="70" fill="#080b16" />
-          <rect width="100" height="70" fill="url(#grid)" />
-
-          {/* the Yamuna, for orientation */}
-          <path
-            d="M92 2 C 88 14, 94 24, 89 34 C 85 44, 90 56, 86 68"
-            fill="none"
-            stroke="#1e3a5f"
-            strokeWidth="2.2"
-            opacity="0.7"
-          />
-
-          {/* route */}
-          <path d={ROUTE_D} fill="none" stroke="#1e2438" strokeWidth="3.4" strokeLinejoin="round" />
-          <path
-            d={ROUTE_D}
-            fill="none"
-            stroke="#4f46e5"
-            strokeWidth="1.1"
-            strokeDasharray="2.5 2"
-            opacity="0.85"
-          />
-
-          {/* landmarks */}
-          {ROUTE.map((p) => (
-            <g key={p.name}>
-              <circle cx={p.x} cy={p.y} r="1.05" fill="#64748b" />
-            </g>
-          ))}
-
-          {/* vehicle */}
-          <g transform={`translate(${t.position.x} ${t.position.y})`}>
-            <circle r="6" fill="url(#pulse)" />
-            <circle r="2.9" fill="#4f46e5" opacity="0.28" />
-            <g transform={`rotate(${t.heading})`}>
-              <path d="M0 -2.6 L1.9 2.2 L0 1.2 L-1.9 2.2 Z" fill="#ffffff" />
-            </g>
-          </g>
-        </svg>
-
-        <div className="absolute left-3 top-3 flex flex-wrap items-center gap-1.5">
+        <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap items-center gap-1.5">
           <Badge tone="success" icon={Satellite}>
             GPS locked
           </Badge>
@@ -163,13 +165,13 @@ export default function Telematics({ booking, car, settings }) {
             {t.position.lat?.toFixed(4)}° N, {t.position.lng?.toFixed(4)}° E
           </Badge>
         </div>
-        <div className="absolute bottom-3 left-3 rounded-xl border border-white/10 bg-ink-950/85 px-3 py-2 backdrop-blur">
+        <div className="pointer-events-none absolute bottom-3 left-3 rounded-xl border border-white/10 bg-ink-950/85 px-3 py-2 backdrop-blur">
           <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
             <Navigation2 size={10} /> Current position
           </p>
           <p className="mt-0.5 text-[13px] font-semibold text-white">{t.nearest}</p>
         </div>
-        <div className="absolute bottom-3 right-3 rounded-xl border border-white/10 bg-ink-950/85 px-3 py-2 text-right backdrop-blur">
+        <div className="pointer-events-none absolute bottom-3 right-3 rounded-xl border border-white/10 bg-ink-950/85 px-3 py-2 text-right backdrop-blur">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Trip so far</p>
           <p className="mt-0.5 font-display text-[13px] font-bold text-white tabular-nums">
             {t.tripKm.toFixed(1)} km
@@ -258,7 +260,7 @@ export default function Telematics({ booking, car, settings }) {
                     .map((s, i) => `${(i / (t.samples.length - 1)) * 200},${34 - (Math.min(s, 160) / 160) * 32}`)
                     .join(' ')}
                   fill="none"
-                  stroke="#818cf8"
+                  stroke="#2FAE6A"
                   strokeWidth="1.4"
                   strokeLinejoin="round"
                 />

@@ -16,6 +16,7 @@ import {
   History,
   Timer,
   ChevronDown,
+  MessageCircle,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useStore } from '../lib/store';
@@ -29,6 +30,7 @@ import Telematics from '../components/Telematics';
 import HandoverChecklist from '../components/HandoverChecklist';
 import KycPanel from '../components/KycPanel';
 import TicketsPanel from '../components/TicketsPanel';
+import { bookingWhatsappUrl } from '../lib/whatsapp';
 
 const hubName = (id) => LOCATIONS.find((l) => l.id === id)?.label || '—';
 
@@ -209,7 +211,7 @@ function BookingCard({ booking, car, settings, onPatch, highlight }) {
                     Payment
                   </h4>
                   <Row
-                    k={`Base · ${inr(booking.quote?.rate)} × ${booking.quote?.days}`}
+                    k={`Base · ${booking.quote?.charge?.label || booking.quote?.days + " days"}`}
                     v={inr(booking.quote?.base)}
                   />
                   {(booking.quote?.addonLines || []).map((l) => (
@@ -316,6 +318,13 @@ function BookingCard({ booking, car, settings, onPatch, highlight }) {
                     action: () => gstInvoicePdf(booking, car, null),
                     cta: 'Download invoice',
                   },
+                  {
+                    icon: MessageCircle,
+                    title: 'Send to WhatsApp',
+                    body: 'Forward the full booking summary to the DelhiDrive operations desk.',
+                    href: bookingWhatsappUrl(booking, car),
+                    cta: 'Open WhatsApp',
+                  },
                 ].map((d) => (
                   <div key={d.title} className="panel-tight flex flex-col p-4">
                     <span className="inline-grid h-10 w-10 place-items-center rounded-xl bg-brand-500/15 text-brand-300">
@@ -323,9 +332,23 @@ function BookingCard({ booking, car, settings, onPatch, highlight }) {
                     </span>
                     <h4 className="mt-3 text-[14px]">{d.title}</h4>
                     <p className="mt-1 flex-1 text-[12px] leading-relaxed text-slate-400">{d.body}</p>
-                    <Button size="sm" variant="secondary" className="mt-3.5 self-start" onClick={d.action}>
-                      {d.cta}
-                    </Button>
+                    {d.href ? (
+                      <Button
+                        as="a"
+                        href={d.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        size="sm"
+                        variant="secondary"
+                        className="mt-3.5 self-start"
+                      >
+                        {d.cta}
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="secondary" className="mt-3.5 self-start" onClick={d.action}>
+                        {d.cta}
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>

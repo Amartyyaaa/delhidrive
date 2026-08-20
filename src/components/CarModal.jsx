@@ -189,10 +189,15 @@ export default function CarModal({ car, open, onClose }) {
               <IndianRupee size={14} className="text-brand-300" />
               Indicative pricing
             </h4>
-            <Row k="1 day" v={inr(car.rate)} />
+            {car.rate6h > 0 && <Row k="Up to 6 hours" v={inr(car.rate6h)} />}
+            {car.rate12h > 0 && <Row k="Up to 12 hours" v={inr(car.rate12h)} />}
+            <Row k="24 hours (1 day)" v={inr(car.rate)} />
             <Row k="3 days" v={inr(car.rate * 3)} />
             <Row k="7 days" v={inr(car.rate * 7)} />
             <Row k="Refundable deposit" v={inr(car.deposit)} tone="text-slate-300" />
+            {car.extraKmCharge > 0 && (
+              <Row k="Extra km beyond limit" v={`₹${car.extraKmCharge}/km`} tone="text-slate-300" />
+            )}
             <p className="mt-2 border-t border-white/[0.07] pt-2 text-[11px] leading-relaxed text-slate-500">
               Excludes 18% GST, optional add-ons and hub fees. Weekend pickups carry a surge multiplier shown
               at checkout.
