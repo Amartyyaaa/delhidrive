@@ -1,0 +1,3 @@
+# Netlify: send every route to index.html so React Router can handle it.
+# Without this, refreshing on /fleet or /admin returns a 404.
+/*    /index.html   200

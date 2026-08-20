@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-ink-950 font-sans text-slate-200 antialiased;
+    background-image:
+      radial-gradient(60rem 40rem at 12% -10%, rgba(79, 70, 229, 0.22), transparent 60%),
+      radial-gradient(50rem 35rem at 92% 4%, rgba(14, 165, 233, 0.14), transparent 60%),
+      radial-gradient(45rem 30rem at 50% 105%, rgba(245, 158, 11, 0.08), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.28);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+    background-clip: content-box;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display tracking-tight text-white;
+  }
+
+  /* Dark-friendly native controls */
+  input[type='datetime-local']::-webkit-calendar-picker-indicator,
+  input[type='date']::-webkit-calendar-picker-indicator,
+  input[type='time']::-webkit-calendar-picker-indicator {
+    filter: invert(0.85);
+    cursor: pointer;
+  }
+
+  input[type='range'] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #4f46e5 var(--pct, 50%), rgba(148, 163, 184, 0.22) var(--pct, 50%));
+    outline: none;
+  }
+  input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 18px;
+    width: 18px;
+    border-radius: 999px;
+    background: #fff;
+    border: 4px solid #4f46e5;
+    cursor: grab;
+    box-shadow: 0 2px 10px rgba(79, 70, 229, 0.55);
+  }
+  input[type='range']::-moz-range-thumb {
+    height: 14px;
+    width: 14px;
+    border-radius: 999px;
+    background: #fff;
+    border: 4px solid #4f46e5;
+    cursor: grab;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgba(129, 140, 248, 0.85);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-2xl border border-white/10 bg-ink-900/70 backdrop-blur-xl shadow-card;
+  }
+
+  .panel-tight {
+    @apply rounded-xl border border-white/10 bg-ink-850/70;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-white/10 bg-ink-950/70 px-3.5 py-2.5 text-sm text-white
+      placeholder:text-slate-500 transition focus:border-brand-400/60 focus:bg-ink-950
+      focus:outline-none focus:ring-2 focus:ring-brand-500/25;
+  }
+
+  .label {
+    @apply mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-400;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04]
+      px-3 py-1 text-[11px] font-medium text-slate-300;
+  }
+
+  .stat-num {
+    @apply font-display text-2xl font-bold text-white tabular-nums;
+  }
+
+  .link-quiet {
+    @apply text-slate-400 transition hover:text-white;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
