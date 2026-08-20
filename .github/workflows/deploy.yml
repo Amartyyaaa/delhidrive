@@ -28,10 +28,23 @@ jobs:
 
       - run: npm ci
 
+      # A project site is served from /<repo>/, but a custom domain serves from
+      # the root. Adding public/CNAME is what switches the site over, so derive
+      # the base path from that rather than hard-coding it.
+      - name: Work out the base path
+        id: base
+        run: |
+          if [ -f public/CNAME ]; then
+            echo "value=/" >> "$GITHUB_OUTPUT"
+            echo "Custom domain found ($(cat public/CNAME)) — building for the domain root."
+          else
+            echo "value=/${{ github.event.repository.name }}/" >> "$GITHUB_OUTPUT"
+            echo "No CNAME — building for /${{ github.event.repository.name }}/."
+          fi
+
       - name: Build
         env:
-          # Project sites live at /<repo>/, so the asset paths need that prefix.
-          VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_BASE: ${{ steps.base.outputs.value }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_ADMIN_EMAILS: ${{ secrets.VITE_ADMIN_EMAILS }}
