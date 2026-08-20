@@ -48,6 +48,10 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_ADMIN_EMAILS: ${{ secrets.VITE_ADMIN_EMAILS }}
+          VITE_MSG91_WIDGET_ID: ${{ secrets.VITE_MSG91_WIDGET_ID }}
+          VITE_MSG91_TOKEN_AUTH: ${{ secrets.VITE_MSG91_TOKEN_AUTH }}
+          VITE_GOOGLE_MAPS_KEY: ${{ secrets.VITE_GOOGLE_MAPS_KEY }}
+          VITE_WHATSAPP_NUMBER: ${{ secrets.VITE_WHATSAPP_NUMBER }}
         run: npm run build
 
       - name: Fail early if Supabase secrets are missing
