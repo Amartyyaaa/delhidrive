@@ -9,6 +9,7 @@ import { useAuth } from '../lib/auth';
 import { handoverReportPdf } from '../lib/pdf';
 import { fmtDateTime, cx } from '../lib/format';
 import { Button, Badge, Field, Input, Textarea, Slider } from './ui';
+import { CAR_SIDES, sidesComplete } from '../lib/verification';
 
 const CHECKLIST_ITEMS = [
   'Front bumper and grille free of damage',
@@ -33,6 +34,7 @@ export default function HandoverChecklist({ booking, car, phase, onSave }) {
   const [fuelLevel, setFuelLevel] = useState(existing?.fuelLevel ?? 100);
   const [notes, setNotes] = useState(existing?.notes || '');
   const [photos, setPhotos] = useState(existing?.photos || []);
+  const [sides, setSides] = useState(existing?.sides || {});
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -57,9 +59,28 @@ export default function HandoverChecklist({ booking, car, phase, onSave }) {
     }
   };
 
+  const addSide = async (sideId, file) => {
+    setUploading(true);
+    try {
+      const url = await uploadFile(
+        `inspections/${user.uid}/${booking.id}/${phase}-${sideId}-${Date.now()}.jpg`,
+        file
+      );
+      setSides((s) => ({ ...s, [sideId]: url }));
+    } catch {
+      toast('Could not attach that photo. Try a smaller image.', { type: 'error' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const save = async () => {
     if (!odometer) {
       toast('Enter the odometer reading to file this inspection.', { type: 'warning' });
+      return;
+    }
+    if (!sidesComplete(sides)) {
+      toast('Photograph all four sides of the car before filing.', { type: 'warning' });
       return;
     }
     setBusy(true);
@@ -70,6 +91,7 @@ export default function HandoverChecklist({ booking, car, phase, onSave }) {
         fuelLevel: Number(fuelLevel),
         notes: notes.trim(),
         photos,
+        sides,
         at: Date.now(),
         by: booking.customerName || user?.name || '',
       };
@@ -183,7 +205,67 @@ export default function HandoverChecklist({ booking, car, phase, onSave }) {
       </Field>
 
       <div>
-        <p className="label">Photos ({photos.length}/6)</p>
+        <p className="label">
+          Four sides of the car ({CAR_SIDES.filter((s) => sides[s.id]).length}/{CAR_SIDES.length})
+        </p>
+        <p className="mb-2 text-[11.5px] leading-snug text-slate-500">
+          A timestamped baseline of every side, so any damage dispute afterwards has evidence to work
+          from.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {CAR_SIDES.map((side) => {
+            const shot = sides[side.id];
+            return (
+              <div key={side.id} className="panel-tight overflow-hidden">
+                <div className="relative h-24 bg-ink-950">
+                  {shot ? (
+                    <>
+                      <img src={shot} alt={side.label} className="h-full w-full object-cover" />
+                      {!locked && (
+                        <button
+                          onClick={() => setSides((s) => ({ ...s, [side.id]: '' }))}
+                          className="absolute right-1.5 top-1.5 rounded-lg bg-ink-950/85 p-1 text-rose-300"
+                          aria-label={`Remove ${side.label}`}
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <label
+                      className={cx(
+                        'flex h-full cursor-pointer flex-col items-center justify-center gap-1 text-slate-500',
+                        'transition hover:text-brand-300',
+                        locked && 'pointer-events-none opacity-50'
+                      )}
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => e.target.files?.[0] && addSide(side.id, e.target.files[0])}
+                      />
+                      <Camera size={16} />
+                      <span className="text-[10.5px]">Add photo</span>
+                    </label>
+                  )}
+                </div>
+                <div className="p-2">
+                  <p className="flex items-center gap-1.5 text-[11.5px] font-semibold text-white">
+                    {shot && <Check size={11} className="text-emerald-400" />}
+                    {side.label}
+                  </p>
+                  <p className="mt-0.5 text-[10px] leading-snug text-slate-500">{side.hint}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <p className="label">Extra damage photos ({photos.length}/6)</p>
         <div className="flex flex-wrap gap-2">
           {photos.map((src, i) => (
             <div key={i} className="group relative h-20 w-28 overflow-hidden rounded-xl border border-white/10">

@@ -38,6 +38,10 @@ import CarArt from '../components/CarArt';
 import PhoneVerify from '../components/PhoneVerify';
 import { sendBookingToWhatsapp } from '../lib/whatsapp';
 import { msg91Ready } from '../lib/otp';
+import LiveSelfie from '../components/LiveSelfie';
+import SocialProfiles from '../components/SocialProfiles';
+import DeliveryAddress from '../components/DeliveryAddress';
+import { bookingBlockers, validateSocials } from '../lib/verification';
 
 const ADDON_ICONS = { Ticket, Baby, Navigation, UserPlus, Fuel };
 const PAY_ICONS = { QrCode, CreditCard, Landmark, Banknote };
@@ -85,6 +89,9 @@ export default function Checkout() {
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '' });
   const [placing, setPlacing] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(false);
+  const [selfie, setSelfie] = useState({ uri: '', at: null });
+  const [socials, setSocials] = useState({});
+  const [delivery, setDelivery] = useState({ address: '', coords: null });
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -176,6 +183,16 @@ export default function Checkout() {
     }
   };
 
+  // Identity checks that must pass before a booking can be placed, plus a
+  // delivery address whenever the car is coming to the customer.
+  const blockers = [
+    ...bookingBlockers({ selfieUri: selfie.uri, socials }),
+    ...((locationId === 'home' || dropLocationId === 'home') && !delivery.address?.trim()
+      ? ['Add the delivery address.']
+      : []),
+    ...(delivery.outsideServiceArea ? ['That delivery address is outside our service area.'] : []),
+  ];
+
   const validate = () => {
     const e = {};
     if (!customer.name.trim()) e.name = 'Required for the rental agreement.';
@@ -184,6 +201,10 @@ export default function Checkout() {
       e.phone = 'Enter a valid 10-digit Indian mobile number.';
     if (dateError) e.dates = dateError;
     setErrors(e);
+    if (blockers.length) {
+      toast(blockers[0], { type: 'warning' });
+      return false;
+    }
     return Object.keys(e).length === 0;
   };
 
@@ -211,6 +232,12 @@ export default function Checkout() {
         customerEmail: customer.email.trim(),
         customerPhone: customer.phone.trim(),
         phoneVerified,
+        verification: {
+          selfie: selfie.uri,
+          selfieAt: selfie.at,
+          socials: validateSocials(socials).profiles,
+        },
+        delivery: locationId === 'home' || dropLocationId === 'home' ? delivery : null,
         pickupMs,
         returnMs,
         locationId,
@@ -503,6 +530,25 @@ export default function Checkout() {
               />
             </div>
 
+            <div className="mt-4 border-t border-white/[0.07] pt-4">
+              <p className="label">Identity check</p>
+              <LiveSelfie
+                value={selfie.uri}
+                takenAt={selfie.at}
+                onCapture={(uri, at) => setSelfie({ uri, at })}
+              />
+              <div className="mt-3">
+                <SocialProfiles value={socials} onChange={setSocials} />
+              </div>
+            </div>
+
+            {(locationId === 'home' || dropLocationId === 'home') && (
+              <div className="mt-4 border-t border-white/[0.07] pt-4">
+                <p className="label">Delivery address</p>
+                <DeliveryAddress value={delivery} onChange={setDelivery} />
+              </div>
+            )}
+
             {myKyc?.status !== 'Verified' && (
               <p className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3.5 py-2.5 text-[12.5px] text-amber-200">
                 You can book now, but handover needs a verified profile. Upload your licence and Aadhaar from{' '}
@@ -706,9 +752,20 @@ export default function Checkout() {
               </div>
             </div>
 
+            {blockers.length > 0 && (
+              <ul className="mt-4 space-y-1 rounded-xl border border-amber-400/25 bg-amber-500/[0.08] px-3.5 py-2.5">
+                {blockers.map((b) => (
+                  <li key={b} className="flex items-start gap-2 text-[11.5px] text-amber-200">
+                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-amber-400" />
+                    {b}
+                  </li>
+                ))}
+              </ul>
+            )}
+
             <Button
               size="lg"
-              className="mt-5 w-full"
+              className="mt-4 w-full"
               onClick={placeBooking}
               loading={placing}
               disabled={placing || Boolean(dateError)}

@@ -40,6 +40,29 @@ export function bookingMessage(booking, car) {
     `Email: ${booking.customerEmail}`,
     `KYC: ${booking.kycStatus || 'Pending Review'}`,
     '',
+    ...(booking.verification
+      ? [
+          '',
+          '*Verification*',
+          `Live selfie: ${booking.verification.selfie ? 'captured' : 'MISSING'}`,
+          ...Object.entries(booking.verification.socials || {}).map(
+            ([k, v]) => `${k[0].toUpperCase() + k.slice(1)}: ${v.url}`
+          ),
+        ]
+      : []),
+    ...(booking.delivery?.address
+      ? [
+          '',
+          '*Delivery address*',
+          booking.delivery.address,
+          ...(booking.delivery.coords
+            ? [
+                `Map: https://www.google.com/maps/search/?api=1&query=${booking.delivery.coords.lat},${booking.delivery.coords.lng}`,
+              ]
+            : []),
+        ]
+      : []),
+    '',
     '*Trip*',
     `Pickup: ${dt(booking.pickupMs)}`,
     `Return: ${dt(booking.returnMs)}`,
