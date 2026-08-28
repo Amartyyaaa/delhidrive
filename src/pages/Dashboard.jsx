@@ -21,7 +21,7 @@ import {
 import { useAuth } from '../lib/auth';
 import { useStore } from '../lib/store';
 import { useNotify } from '../lib/notify';
-import { LOCATIONS, refundFor } from '../lib/pricing';
+import { LOCATIONS, locationLabel, refundFor } from '../lib/pricing';
 import { rentalAgreementPdf, gstInvoicePdf } from '../lib/pdf';
 import { inr, fmtDateTime, countdownParts, cx } from '../lib/format';
 import { Button, Badge, Tabs, Empty, Stat, Modal, Row, Spinner } from '../components/ui';
@@ -32,7 +32,7 @@ import KycPanel from '../components/KycPanel';
 import TicketsPanel from '../components/TicketsPanel';
 import { bookingWhatsappUrl } from '../lib/whatsapp';
 
-const hubName = (id) => LOCATIONS.find((l) => l.id === id)?.label || '—';
+const hubName = locationLabel;
 
 function bookingPhase(b) {
   if (b.status === 'Cancelled') return 'cancelled';

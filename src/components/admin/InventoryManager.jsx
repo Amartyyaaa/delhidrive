@@ -27,7 +27,7 @@ const BLANK = {
   bootLitres: 300,
   deposit: 3000,
   plate: '',
-  hub: 'cp',
+  hub: 'airport',
   colorHex: '#128A4B',
   terrain: ['City'],
   zeroDep: true,

@@ -13,6 +13,7 @@ import {
   UserRound,
   Database,
   HardDrive,
+  Repeat,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useNotify } from '../lib/notify';
@@ -23,6 +24,7 @@ import { LogoMark } from './Logo';
 
 const LINKS = [
   { to: '/fleet', label: 'Fleet', icon: LayoutGrid },
+  { to: '/subscribe', label: 'Subscribe', icon: Repeat },
   { to: '/dashboard', label: 'My Bookings', icon: Gauge, auth: true },
   { to: '/admin', label: 'Admin', icon: ShieldCheck, admin: true },
 ];

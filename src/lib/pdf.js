@@ -3,7 +3,7 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { LOCATIONS } from './pricing';
+import { LOCATIONS, locationLabel } from './pricing';
 import { fmtDateTime, fmtDate } from './format';
 
 const NAVY = [10, 10, 10]; // near-black
@@ -23,7 +23,7 @@ const COMPANY = {
 };
 
 const rupee = (n) => 'Rs. ' + Math.round(Number(n) || 0).toLocaleString('en-IN');
-const hubName = (id) => LOCATIONS.find((l) => l.id === id)?.label || '—';
+const hubName = locationLabel;
 
 /* ------------------------------------------------------------------ */
 /* Shared chrome                                                       */

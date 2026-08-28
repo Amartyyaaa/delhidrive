@@ -30,8 +30,8 @@ const PROMISES = [
   },
   {
     icon: MapPin,
-    title: '5 handover points',
-    body: 'Airport T3, Connaught Place, Cyber City, Noida 18 — or your doorstep.',
+    title: '3 handover points',
+    body: 'Delhi Airport T3, New Delhi Railway Station — or delivered to your door.',
   },
   {
     icon: Gauge,
@@ -56,7 +56,7 @@ export default function Home() {
   const { fleet } = useStore();
   const navigate = useNavigate();
   const [active, setActive] = useState(null);
-  const [quick, setQuick] = useState({ category: '', hub: 'cp', seats: '' });
+  const [quick, setQuick] = useState({ category: '', hub: 'airport', seats: '' });
 
   const featured = useMemo(
     () =>
@@ -116,7 +116,7 @@ export default function Home() {
 
               <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-slate-400">
                 Self-drive rentals with zero-depreciation insurance, transparent GST billing and no
-                per-kilometre charges. Collect from five NCR hubs or have the car delivered to your gate.
+                per-kilometre charges. Collect at the airport or railway station, or have the car delivered to your gate. Free pickup and drop on rentals of 3 days or more.
               </p>
 
               <div className="mt-7 flex flex-wrap gap-3">

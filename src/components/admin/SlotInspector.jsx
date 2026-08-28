@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { rentalAgreementPdf, gstInvoicePdf } from '../../lib/pdf';
 import { useNotify } from '../../lib/notify';
-import { LOCATIONS } from '../../lib/pricing';
+import { LOCATIONS, locationLabel } from '../../lib/pricing';
 import { inr, fmtTime, cx } from '../../lib/format';
 import { Button, Badge, Empty, Input } from '../ui';
 
@@ -29,7 +29,7 @@ const BANDS = [
   { id: 'evening', label: 'Evening', sub: '17:00 – 05:59', icon: Moon, from: 17, to: 30 },
 ];
 
-const hubName = (id) => LOCATIONS.find((l) => l.id === id)?.label || '—';
+const hubName = locationLabel;
 
 const KYC_TONE = { Verified: 'success', 'Pending Review': 'warning', Rejected: 'danger' };
 

@@ -27,7 +27,7 @@ export const FLEET_SEED = [
     "bootLitres": 313,
     "deposit": 3000,
     "plate": "DL 1C AB 1000",
-    "hub": "cp",
+    "hub": "station",
     "colorHex": "#c0392b",
     "terrain": [
       "City"
@@ -63,7 +63,7 @@ export const FLEET_SEED = [
     "bootLitres": 341,
     "deposit": 3000,
     "plate": "DL 2C BE 1137",
-    "hub": "t3",
+    "hub": "airport",
     "colorHex": "#2980b9",
     "terrain": [
       "City"
@@ -99,7 +99,7 @@ export const FLEET_SEED = [
     "bootLitres": 265,
     "deposit": 3000,
     "plate": "DL 3C CH 1274",
-    "hub": "cyber",
+    "hub": "airport",
     "colorHex": "#c0392b",
     "terrain": [
       "City",
@@ -136,7 +136,7 @@ export const FLEET_SEED = [
     "bootLitres": 402,
     "deposit": 3000,
     "plate": "DL 4C DK 1411",
-    "hub": "noida18",
+    "hub": "station",
     "colorHex": "#ecf0f1",
     "terrain": [
       "City",
@@ -173,7 +173,7 @@ export const FLEET_SEED = [
     "bootLitres": 318,
     "deposit": 3000,
     "plate": "DL 5C EN 1548",
-    "hub": "cp",
+    "hub": "station",
     "colorHex": "#34495e",
     "terrain": [
       "City",
@@ -210,7 +210,7 @@ export const FLEET_SEED = [
     "bootLitres": 318,
     "deposit": 3000,
     "plate": "DL 6C FQ 1685",
-    "hub": "t3",
+    "hub": "airport",
     "colorHex": "#2c3e50",
     "terrain": [
       "City",
@@ -247,7 +247,7 @@ export const FLEET_SEED = [
     "bootLitres": 420,
     "deposit": 3000,
     "plate": "DL 7C GT 1822",
-    "hub": "cyber",
+    "hub": "airport",
     "colorHex": "#7f8c8d",
     "terrain": [
       "City",
@@ -284,7 +284,7 @@ export const FLEET_SEED = [
     "bootLitres": 366,
     "deposit": 3000,
     "plate": "DL 8C HW 1959",
-    "hub": "noida18",
+    "hub": "station",
     "colorHex": "#d35400",
     "terrain": [
       "City"
@@ -320,7 +320,7 @@ export const FLEET_SEED = [
     "bootLitres": 378,
     "deposit": 3000,
     "plate": "DL 9C IZ 2096",
-    "hub": "cp",
+    "hub": "station",
     "colorHex": "#ecf0f1",
     "terrain": [
       "City",
@@ -357,7 +357,7 @@ export const FLEET_SEED = [
     "bootLitres": 210,
     "deposit": 4000,
     "plate": "DL 1C JD 2233",
-    "hub": "t3",
+    "hub": "airport",
     "colorHex": "#16a085",
     "terrain": [
       "City"
@@ -393,7 +393,7 @@ export const FLEET_SEED = [
     "bootLitres": 308,
     "deposit": 4000,
     "plate": "DL 2C KG 2370",
-    "hub": "cyber",
+    "hub": "airport",
     "colorHex": "#2980b9",
     "terrain": [
       "City",
@@ -430,7 +430,7 @@ export const FLEET_SEED = [
     "bootLitres": 350,
     "deposit": 4000,
     "plate": "DL 3C LJ 2507",
-    "hub": "noida18",
+    "hub": "station",
     "colorHex": "#34495e",
     "terrain": [
       "City",
@@ -467,7 +467,7 @@ export const FLEET_SEED = [
     "bootLitres": 510,
     "deposit": 4000,
     "plate": "DL 4C MM 2644",
-    "hub": "cp",
+    "hub": "station",
     "colorHex": "#ecf0f1",
     "terrain": [
       "City",
@@ -504,7 +504,7 @@ export const FLEET_SEED = [
     "bootLitres": 257,
     "deposit": 4000,
     "plate": "DL 5C NP 2781",
-    "hub": "t3",
+    "hub": "airport",
     "colorHex": "#c0392b",
     "terrain": [
       "City",
@@ -541,7 +541,7 @@ export const FLEET_SEED = [
     "bootLitres": 350,
     "deposit": 4000,
     "plate": "DL 6C OS 2918",
-    "hub": "cyber",
+    "hub": "airport",
     "colorHex": "#2c3e50",
     "terrain": [
       "City",
@@ -578,7 +578,7 @@ export const FLEET_SEED = [
     "bootLitres": 328,
     "deposit": 4000,
     "plate": "DL 7C PV 3055",
-    "hub": "noida18",
+    "hub": "station",
     "colorHex": "#ecf0f1",
     "terrain": [
       "City",
@@ -615,7 +615,7 @@ export const FLEET_SEED = [
     "bootLitres": 93,
     "deposit": 4000,
     "plate": "DL 8C QY 3192",
-    "hub": "cp",
+    "hub": "station",
     "colorHex": "#2c3e50",
     "terrain": [
       "Highway",
@@ -652,7 +652,7 @@ export const FLEET_SEED = [
     "bootLitres": 460,
     "deposit": 6000,
     "plate": "DL 9C RC 3329",
-    "hub": "t3",
+    "hub": "airport",
     "colorHex": "#2c3e50",
     "terrain": [
       "Highway",
@@ -690,7 +690,7 @@ export const FLEET_SEED = [
     "bootLitres": 488,
     "deposit": 6000,
     "plate": "DL 1C SF 3466",
-    "hub": "cyber",
+    "hub": "airport",
     "colorHex": "#7f8c8d",
     "terrain": [
       "City",
@@ -727,7 +727,7 @@ export const FLEET_SEED = [
     "bootLitres": 433,
     "deposit": 6000,
     "plate": "DL 2C TI 3603",
-    "hub": "noida18",
+    "hub": "station",
     "colorHex": "#7f8c8d",
     "terrain": [
       "City",
@@ -765,7 +765,7 @@ export const FLEET_SEED = [
     "bootLitres": 150,
     "deposit": 6000,
     "plate": "DL 3C UL 3740",
-    "hub": "cp",
+    "hub": "station",
     "colorHex": "#d35400",
     "terrain": [
       "Off-road",
@@ -802,7 +802,7 @@ export const FLEET_SEED = [
     "bootLitres": 587,
     "deposit": 15000,
     "plate": "DL 4C VO 3877",
-    "hub": "t3",
+    "hub": "airport",
     "colorHex": "#ecf0f1",
     "terrain": [
       "Highway",
@@ -839,7 +839,7 @@ export const FLEET_SEED = [
     "bootLitres": 460,
     "deposit": 15000,
     "plate": "DL 5C WR 4014",
-    "hub": "cyber",
+    "hub": "airport",
     "colorHex": "#1c1c1c",
     "terrain": [
       "City",

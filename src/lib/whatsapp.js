@@ -8,10 +8,10 @@
 // with a Supabase Edge Function later.
 
 import { WHATSAPP_NUMBER } from './config';
-import { LOCATIONS } from './pricing';
+import { LOCATIONS, locationLabel } from './pricing';
 import { inr } from './format';
 
-const hubName = (id) => LOCATIONS.find((l) => l.id === id)?.label || '—';
+const hubName = locationLabel;
 
 const dt = (ms) =>
   new Date(ms).toLocaleString('en-IN', {

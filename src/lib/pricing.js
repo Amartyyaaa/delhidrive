@@ -1,13 +1,50 @@
 // Reservation pricing engine — the single source of truth for every rupee
 // shown to a customer, on the checkout page, in the invoice PDF and in admin.
 
+/** Flat fee per driver movement — one for pickup, one for drop. */
+export const LOGISTICS_FEE = 499;
+
+/** Rentals of this many days or longer get pickup and drop free. */
+export const FREE_LOGISTICS_FROM_DAYS = 3;
+
 export const LOCATIONS = [
-  { id: 't3', label: 'Delhi Airport T3', note: 'Kerbside pickup, Gate 5', fee: 299 },
-  { id: 'cp', label: 'Connaught Place', note: 'Block N, Outer Circle', fee: 0 },
-  { id: 'cyber', label: 'Cyber City Gurgaon', note: 'DLF Cyber Hub, P2 Level', fee: 0 },
-  { id: 'noida18', label: 'Noida Sector 18', note: 'Atta Market, Gate B', fee: 0 },
-  { id: 'door', label: 'Doorstep Delivery', note: 'Anywhere inside Delhi NCR', fee: 499 },
+  {
+    id: 'airport',
+    label: 'Delhi Airport — Terminal 3',
+    note: 'Kerbside at Arrivals, Gate 5',
+    fee: LOGISTICS_FEE,
+  },
+  {
+    id: 'station',
+    label: 'New Delhi Railway Station',
+    note: 'Ajmeri Gate side, prepaid bay',
+    fee: LOGISTICS_FEE,
+  },
+  {
+    id: 'home',
+    label: 'Home Delivery',
+    note: 'Anywhere inside Delhi NCR',
+    fee: LOGISTICS_FEE,
+  },
 ];
+
+/**
+ * Hubs we no longer operate from. Kept only so older bookings and invoices
+ * still render the place the customer actually went to, rather than a dash.
+ * Never offered as a choice.
+ */
+export const RETIRED_LOCATIONS = {
+  t3: 'Delhi Airport T3',
+  cp: 'Connaught Place',
+  cyber: 'Cyber City Gurgaon',
+  noida18: 'Noida Sector 18',
+  door: 'Doorstep Delivery',
+};
+
+/** Resolve any hub id — current or retired — to something displayable. */
+export function locationLabel(id) {
+  return LOCATIONS.find((l) => l.id === id)?.label || RETIRED_LOCATIONS[id] || '—';
+}
 
 export const ADDONS = [
   {
@@ -190,12 +227,22 @@ export function computeQuote({
   }));
   const addonTotal = addonLines.reduce((sum, l) => sum + l.amount, 0);
 
+  // Logistics: a flat fee each way, charged for pickup AND drop regardless of
+  // whether they are the same place — each leg is a separate driver movement.
+  // Long rentals absorb that cost, so three days or more travels free.
   const pickupHub = LOCATIONS.find((l) => l.id === locationId);
-  const dropHub = LOCATIONS.find((l) => l.id === dropLocationId);
-  const pickupFee = pickupHub?.fee || 0;
-  // A different drop hub than pickup incurs the drop hub's fee too.
-  const dropFee = dropHub && dropHub.id !== pickupHub?.id ? dropHub.fee || 0 : 0;
+  const dropHub = LOCATIONS.find((l) => l.id === dropLocationId) || pickupHub;
+  const logisticsWaived = days >= FREE_LOGISTICS_FROM_DAYS;
+
+  const pickupFeeFull = pickupHub?.fee ?? 0;
+  const dropFeeFull = dropHub?.fee ?? 0;
+  const logisticsFeeFull = pickupFeeFull + dropFeeFull;
+
+  const pickupFee = logisticsWaived ? 0 : pickupFeeFull;
+  const dropFee = logisticsWaived ? 0 : dropFeeFull;
   const logisticsFee = pickupFee + dropFee;
+  // How much the 3-day rule saved them — shown on the fare breakdown.
+  const logisticsSaved = logisticsFeeFull - logisticsFee;
 
   const subtotal = base + addonTotal + logisticsFee;
   const couponResult = applyCoupon(couponCode, coupons, subtotal);
@@ -221,6 +268,9 @@ export function computeQuote({
     pickupFee,
     dropFee,
     logisticsFee,
+    logisticsFeeFull,
+    logisticsSaved,
+    logisticsWaived,
     subtotal,
     discount,
     couponResult,

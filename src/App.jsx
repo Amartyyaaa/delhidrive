@@ -4,6 +4,7 @@ import Nav from './components/Nav';
 import Copilot from './components/Copilot';
 import Home from './pages/Home';
 import Fleet from './pages/Fleet';
+import Subscribe from './pages/Subscribe';
 import Checkout from './pages/Checkout';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
@@ -64,6 +65,11 @@ function Footer() {
               </Link>
             </li>
             <li>
+              <Link to="/subscribe" className="link-quiet">
+                Smart Subscription
+              </Link>
+            </li>
+            <li>
               <Link to="/dashboard" className="link-quiet">
                 My bookings
               </Link>
@@ -121,6 +127,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/fleet" element={<Fleet />} />
+          <Route path="/subscribe" element={<Subscribe />} />
           <Route path="/checkout/:carId" element={<Checkout />} />
           <Route path="/login" element={<Login />} />
           <Route

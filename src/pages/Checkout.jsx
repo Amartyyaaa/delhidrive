@@ -30,6 +30,7 @@ import {
   PAYMENT_METHODS,
   computeQuote,
   rentalHours,
+  FREE_LOGISTICS_FROM_DAYS,
 } from '../lib/pricing';
 import { inr, cx, fmtDuration, toLocalInput } from '../lib/format';
 import { Button, Badge, Field, Input, Toggle, Row, Spinner } from '../components/ui';
@@ -75,8 +76,8 @@ export default function Checkout() {
 
   const [pickupMs, setPickupMs] = useState(initial.pickup);
   const [returnMs, setReturnMs] = useState(initial.drop);
-  const [locationId, setLocationId] = useState('cp');
-  const [dropLocationId, setDropLocationId] = useState('cp');
+  const [locationId, setLocationId] = useState('airport');
+  const [dropLocationId, setDropLocationId] = useState('airport');
   const [addons, setAddons] = useState({});
   const [couponInput, setCouponInput] = useState('');
   const [couponCode, setCouponCode] = useState('');
@@ -618,9 +619,19 @@ export default function Checkout() {
                 </div>
               )}
 
-              {quote.logisticsFee > 0 && (
+              {(quote.logisticsFeeFull > 0 || quote.logisticsFee > 0) && (
                 <div className="py-2">
-                  <Row k="Hub / delivery fee" v={inr(quote.logisticsFee)} />
+                  <Row
+                    k="Pickup & drop"
+                    v={quote.logisticsWaived ? 'Free' : inr(quote.logisticsFee)}
+                    tone={quote.logisticsWaived ? 'text-emerald-400' : undefined}
+                  />
+                  {quote.logisticsWaived && (
+                    <p className="mt-0.5 text-[11px] text-emerald-400/80">
+                      Saved {inr(quote.logisticsSaved)} — free on rentals of{' '}
+                      {FREE_LOGISTICS_FROM_DAYS} days or more
+                    </p>
+                  )}
                 </div>
               )}
 

@@ -190,7 +190,7 @@ export function answer(question, ctx) {
   if (has(q, 'airport', 't3', 'terminal', 'igi', 'flight')) {
     return {
       text: `Airport T3 pickups happen kerbside at Arrivals Gate 5, in the pre-paid mobility bay just past the taxi counters.\n\nHow it works: once you clear baggage, tap "I've landed" in My Bookings (or call the number in your confirmation SMS). Your executive brings the car to Gate 5 within 8 minutes. Airport handover carries a ${inr(
-        LOCATIONS.find((l) => l.id === 't3').fee
+        LOCATIONS.find((l) => l.id === 'airport').fee
       )} facility fee, which is shown as a line item before you pay.\n\nWe track your flight number, so a delayed landing does not eat into your rental hours — the clock starts at handover, not at your original booked time. Free waiting is 60 minutes past the scheduled slot.`,
       chips: ['What are the other pickup hubs?', 'Do you deliver to my address?'],
     };
