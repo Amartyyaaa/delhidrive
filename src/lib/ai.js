@@ -320,7 +320,7 @@ export function answer(question, ctx) {
   /* -- breakdown / roadside -- */
   if (has(q, 'breakdown', 'break down', 'accident', 'towing', 'flat tyre', 'puncture', 'help on road', 'stranded')) {
     return {
-      text: `Call the 24x7 helpline on +91 11 4000 8080 first — before arranging any repair yourself, or the cost may not be reimbursable.\n\nRoadside assistance is included on every rental across Delhi NCR and up to 250 km beyond: puncture help, jump start, key lockout, fuel delivery and flatbed towing. Median response inside NCR is 42 minutes.\n\nIf the car cannot be made roadworthy the same day, we send a replacement of the same or higher category at no extra charge, and the unused hours are credited back. Log it as a Breakdown assistance ticket too so the operations team has a written trail.`,
+      text: `Call the 24x7 helpline on +91 99112 05522 first — before arranging any repair yourself, or the cost may not be reimbursable.\n\nRoadside assistance is included on every rental across Delhi NCR and up to 250 km beyond: puncture help, jump start, key lockout, fuel delivery and flatbed towing. Median response inside NCR is 42 minutes.\n\nIf the car cannot be made roadworthy the same day, we send a replacement of the same or higher category at no extra charge, and the unused hours are credited back. Log it as a Breakdown assistance ticket too so the operations team has a written trail.`,
       chips: ['Raise a support ticket', 'How does zero-dep insurance work?'],
     };
   }
@@ -346,7 +346,7 @@ export function answer(question, ctx) {
   /* -- ticket -- */
   if (has(q, 'ticket', 'complaint', 'support', 'contact', 'talk to', 'human', 'agent', 'billing issue')) {
     return {
-      text: `For anything I cannot settle, raise a ticket from Dashboard > Support. Pick one of Breakdown assistance, Billing query or Extend ongoing trip, describe the problem, and our operations team replies in the same thread — you will see the status move through Open, In Progress and Resolved.\n\nUrgent and on the road? Call +91 11 4000 8080, staffed 24x7. Billing disputes are usually settled within one working day.`,
+      text: `For anything I cannot settle, raise a ticket from Dashboard > Support. Pick one of Breakdown assistance, Billing query or Extend ongoing trip, describe the problem, and our operations team replies in the same thread — you will see the status move through Open, In Progress and Resolved.\n\nUrgent and on the road? Call +91 99112 05522, staffed 24x7. Billing disputes are usually settled within one working day.`,
       chips: ['Raise a support ticket', 'What happens if I return the car late?'],
     };
   }

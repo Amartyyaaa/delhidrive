@@ -12,12 +12,15 @@ const SLATE = [100, 116, 139];
 const LIGHT = [226, 232, 240];
 
 const COMPANY = {
-  name: 'DELHI DRIVE MOBILITY PVT. LTD.',
-  addr: '4th Floor, Tower B, Cyber Hub, DLF Cyber City, Gurugram 122002',
-  gstin: '07AABCD1234E1ZX',
-  cin: 'U60100DL2024PTC419902',
-  pan: 'AABCD1234E',
-  phone: '+91 11 4000 8080',
+  // Real registration. A proprietorship has no CIN.
+  // PAN is deliberately not shown: it is the proprietor's personal PAN, it is
+  // derivable from the GSTIN anyway, and the GSTIN is the number an invoice
+  // legally needs.
+  name: 'NCR DRIVE RENTAL CARS',
+  legalName: 'Ankit Malik',
+  addr: 'KH-105B, Sangam Vihar, Loni, Ghaziabad, Uttar Pradesh 201102',
+  gstin: '09DZGPM3676G3ZV',
+  phone: '+91 99112 05522',
   email: 'support@delhidrive.in',
   web: 'www.delhidrive.in',
 };
@@ -138,7 +141,6 @@ export function rentalAgreementPdf(booking, car, user) {
     'Lessor',
     [
       ['Entity', 'DelhiDrive Mobility'],
-      ['CIN', COMPANY.cin],
       ['GSTIN', COMPANY.gstin],
       ['Helpline', COMPANY.phone],
     ],
@@ -216,7 +218,7 @@ export function rentalAgreementPdf(booking, car, user) {
   doc.setTextColor(...SLATE);
   doc.text('Lessee signature', 14, sy + 19);
   doc.text(booking.customerName || '', 14, sy + 12);
-  doc.text('For DelhiDrive Mobility Pvt. Ltd.', W - 84, sy + 19);
+  doc.text('For ' + COMPANY.name, W - 84, sy + 19);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...NAVY);
   doc.text('Authorised Signatory', W - 84, sy + 12);
@@ -252,9 +254,9 @@ export function gstInvoicePdf(booking, car, user) {
     y,
     'Supplier',
     [
-      ['Legal name', 'DelhiDrive Mobility Pvt Ltd'],
+      ['Legal name', COMPANY.legalName],
+      ['Trade name', COMPANY.name],
       ['GSTIN', COMPANY.gstin],
-      ['PAN', COMPANY.pan],
       ['Place of supply', 'Delhi (07)'],
     ],
     'Invoice details',

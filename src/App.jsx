@@ -52,7 +52,7 @@ function Footer() {
             telematics and paperwork that generates itself.
           </p>
           <p className="mt-4 text-[11.5px] text-slate-600">
-            DelhiDrive Mobility Pvt. Ltd. · GSTIN 07AABCD1234E1ZX · CIN U60100DL2024PTC419902
+            NCR Drive Rental Cars · GSTIN 09DZGPM3676G3ZV
           </p>
         </div>
 
