@@ -173,7 +173,7 @@ export default function Subscribe() {
                       {inr(q.monthly)}
                     </p>
                     <p className="text-[10.5px] text-slate-500">per month + GST</p>
-                    {t.discount > 0 && (
+                    {t.discount > 0 && !q.custom && (
                       <p className="mt-1 text-[10.5px] text-emerald-400">
                         {Math.round(t.discount * 100)}% off the 12-month price
                       </p>

@@ -7,8 +7,9 @@
 //   2. at least one social profile, which gives operations a real, traceable
 //      identity to check against the name on the licence
 //
-// And one thing before the keys change hands: photographs of all four sides of
-// the car, so any damage dispute afterwards has a timestamped baseline.
+// And one thing before the keys change hands: at least five photographs of the
+// car — all four sides plus the dashboard — so any damage, fuel or odometer
+// dispute afterwards has a timestamped baseline.
 
 /* ------------------------------------------------------------------ */
 /* Social profiles                                                     */
@@ -127,11 +128,11 @@ export function validateSocials(input = {}) {
 /* ------------------------------------------------------------------ */
 
 /**
- * The four sides, in the order the renter walks around the car. Each carries
- * the framing instruction shown next to the diagram so the photos are actually
- * usable as evidence rather than four blurry close-ups.
+ * The photos every inspection must have, in the order the renter walks round
+ * the car and then climbs in. Each carries the framing instruction shown next
+ * to it so the photos are usable as evidence rather than blurry close-ups.
  */
-export const CAR_SIDES = [
+export const REQUIRED_PHOTOS = [
   {
     id: 'front',
     label: 'Front',
@@ -160,15 +161,25 @@ export const CAR_SIDES = [
     hint: 'Full side profile from the kerb side, both wheels visible.',
     icon: 'ArrowLeft',
   },
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    short: 'Dashboard',
+    hint: 'Ignition on — odometer and fuel gauge readable in the same shot.',
+    icon: 'Gauge',
+  },
 ];
 
-/** Which sides are still missing from an inspection record. */
-export function missingSides(sides = {}) {
-  return CAR_SIDES.filter((s) => !sides[s.id]);
+/** Fewest photos an inspection can be filed with. */
+export const MIN_INSPECTION_PHOTOS = REQUIRED_PHOTOS.length;
+
+/** Which required photos are still missing from an inspection record. */
+export function missingPhotos(shots = {}) {
+  return REQUIRED_PHOTOS.filter((s) => !shots[s.id]);
 }
 
-export function sidesComplete(sides = {}) {
-  return missingSides(sides).length === 0;
+export function photosComplete(shots = {}) {
+  return missingPhotos(shots).length === 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -176,11 +187,35 @@ export function sidesComplete(sides = {}) {
 /* ------------------------------------------------------------------ */
 
 /**
+ * Where a renter's KYC stands, as far as booking is concerned. Documents must
+ * be submitted before a booking can be placed at all; until operations verify
+ * them, the booking waits under review instead of being confirmed.
+ *
+ * @returns {{submitted: boolean, verified: boolean, status: string, blocker: string}}
+ */
+export function kycGate(kyc) {
+  const status = kyc?.status || 'Not submitted';
+  if (status === 'Verified') return { submitted: true, verified: true, status, blocker: '' };
+  if (status === 'Pending Review') return { submitted: true, verified: false, status, blocker: '' };
+  return {
+    submitted: false,
+    verified: false,
+    status,
+    blocker:
+      status === 'Rejected'
+        ? 'Your KYC was rejected — upload your documents again before booking.'
+        : 'Upload your driving licence and Aadhaar (KYC) before booking.',
+  };
+}
+
+/**
  * Everything that must be true before a booking may be placed.
  * Returns a list of human-readable blockers (empty means good to go).
  */
-export function bookingBlockers({ selfieUri, socials }) {
+export function bookingBlockers({ selfieUri, socials, kyc }) {
   const blockers = [];
+  const gate = kycGate(kyc);
+  if (!gate.submitted) blockers.push(gate.blocker);
   if (!selfieUri) blockers.push('Take a live verification selfie.');
   const social = validateSocials(socials);
   if (social.count < MIN_SOCIAL_PROFILES) {

@@ -411,3 +411,8 @@ enabled = true
 # declarative_schema_path = "./schemas"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Razorpay's webhook carries no Supabase token, so the function checks every
+# caller itself (see supabase/functions/razorpay/index.ts).
+[functions.razorpay]
+verify_jwt = false

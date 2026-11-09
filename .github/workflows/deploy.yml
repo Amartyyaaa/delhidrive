@@ -52,6 +52,7 @@ jobs:
           VITE_MSG91_TOKEN_AUTH: ${{ secrets.VITE_MSG91_TOKEN_AUTH }}
           VITE_GOOGLE_MAPS_KEY: ${{ secrets.VITE_GOOGLE_MAPS_KEY }}
           VITE_WHATSAPP_NUMBER: ${{ secrets.VITE_WHATSAPP_NUMBER }}
+          VITE_RAZORPAY_KEY_ID: ${{ secrets.VITE_RAZORPAY_KEY_ID }}
         run: npm run build
 
       - name: Fail early if Supabase secrets are missing

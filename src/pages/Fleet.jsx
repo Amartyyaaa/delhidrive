@@ -1,10 +1,12 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, SlidersHorizontal, X, RotateCcw, Car as CarIcon } from 'lucide-react';
+import { Search, SlidersHorizontal, X, RotateCcw, Car as CarIcon, CalendarClock } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { CATEGORIES, TRANSMISSIONS, FUELS } from '../data/fleet';
-import { inr, cx } from '../lib/format';
-import { Button, Badge, Empty, Slider, Select, Spinner } from '../components/ui';
+import { minRentalHours } from '../lib/pricing';
+import { clashesFor, parseWindow } from '../lib/availability';
+import { inr, cx, toLocalInput } from '../lib/format';
+import { Button, Badge, Empty, Slider, Select, Spinner, Input } from '../components/ui';
 import CarCard from '../components/CarCard';
 import CarModal from '../components/CarModal';
 
@@ -49,7 +51,7 @@ function Pills({ options, value, onChange, allLabel = 'All' }) {
 }
 
 export default function Fleet() {
-  const { fleet, ready } = useStore();
+  const { fleet, ready, busySlots, settings } = useStore();
   const [params, setParams] = useSearchParams();
   const [active, setActive] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -68,6 +70,49 @@ export default function Fleet() {
   const [zeroDepOnly, setZeroDepOnly] = useState(params.get('zeroDep') === '1');
   const [availableOnly, setAvailableOnly] = useState(params.get('available') !== '0');
   const [sort, setSort] = useState(params.get('sort') || 'recommended');
+  // The trip dates, as datetime-local strings. With both set, every car already
+  // booked over that window shows as sold out.
+  const [pickup, setPickup] = useState(params.get('pickup') || '');
+  const [ret, setRet] = useState(params.get('return') || '');
+  const hub = params.get('hub') || '';
+
+  const dates = parseWindow(pickup, ret);
+  const dateError =
+    pickup && ret && !dates
+      ? 'Return must be after pickup.'
+      : dates && (dates.end - dates.start) / 3600000 < minRentalHours(settings)
+        ? `Minimum rental is ${minRentalHours(settings)} hours.`
+        : '';
+
+  // Carried to checkout so the customer does not enter the dates twice.
+  const query = useMemo(() => {
+    const p = new URLSearchParams();
+    if (dates) {
+      p.set('pickup', pickup);
+      p.set('return', ret);
+    }
+    if (hub) p.set('hub', hub);
+    const str = p.toString();
+    return str ? `?${str}` : '';
+  }, [dates?.start, dates?.end, pickup, ret, hub]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const soldOut = useMemo(() => {
+    const map = new Map();
+    if (!dates) return map;
+    fleet.forEach((c) => {
+      const clashes = clashesFor(busySlots, c.id, dates.start, dates.end);
+      if (clashes.length) map.set(c.id, { end: Math.max(...clashes.map((x) => x.end)) });
+    });
+    return map;
+  }, [fleet, busySlots, dates?.start, dates?.end]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const changePickup = (value) => {
+    setPickup(value);
+    const start = new Date(value).getTime();
+    const end = new Date(ret).getTime();
+    // A fresh pickup with no sensible return yet gets a one-day trip to start from.
+    if (!Number.isNaN(start) && (Number.isNaN(end) || end <= start)) setRet(toLocalInput(start + 86400000));
+  };
 
   // Keep the slider ceiling in step with the live fleet.
   useEffect(() => {
@@ -86,8 +131,11 @@ export default function Fleet() {
     if (zeroDepOnly) next.zeroDep = '1';
     if (!availableOnly) next.available = '0';
     if (sort !== 'recommended') next.sort = sort;
+    if (pickup) next.pickup = pickup;
+    if (ret) next.return = ret;
+    if (hub) next.hub = hub;
     setParams(next, { replace: true });
-  }, [q, category, transmission, fuel, maxPrice, minSeats, zeroDepOnly, availableOnly, sort, priceCeiling, setParams]);
+  }, [q, category, transmission, fuel, maxPrice, minSeats, zeroDepOnly, availableOnly, sort, priceCeiling, pickup, ret, hub, setParams]);
 
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -114,8 +162,9 @@ export default function Fleet() {
       recommended: (a, b) =>
         b.rating * 20 + b.reviewCount * 0.05 - (a.rating * 20 + a.reviewCount * 0.05),
     }[sort];
-    return [...list].sort(cmp);
-  }, [fleet, q, category, transmission, fuel, maxPrice, minSeats, zeroDepOnly, availableOnly, sort]);
+    // Sold-out cars stay visible, so the customer can see the car exists, but sink to the end.
+    return [...list].sort((a, b) => soldOut.has(a.id) - soldOut.has(b.id) || cmp(a, b));
+  }, [fleet, q, category, transmission, fuel, maxPrice, minSeats, zeroDepOnly, availableOnly, sort, soldOut]);
 
   const activeCount =
     (category ? 1 : 0) +
@@ -219,6 +268,39 @@ export default function Fleet() {
         </p>
       </div>
 
+      <div className="panel mb-5 p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex items-center gap-2 self-center pr-1">
+            <CalendarClock size={16} className="text-brand-300" />
+            <div>
+              <p className="text-[13.5px] font-semibold text-white">When do you need it?</p>
+              <p className="text-[11.5px] text-slate-500">Cars already booked on your dates show as sold out.</p>
+            </div>
+          </div>
+          <label className="min-w-[12rem] flex-1">
+            <span className="label">Pickup</span>
+            <Input type="datetime-local" value={pickup} onChange={(e) => changePickup(e.target.value)} />
+          </label>
+          <label className="min-w-[12rem] flex-1">
+            <span className="label">Return</span>
+            <Input type="datetime-local" value={ret} min={pickup || undefined} onChange={(e) => setRet(e.target.value)} />
+          </label>
+          {(pickup || ret) && (
+            <Button
+              variant="ghost"
+              icon={X}
+              onClick={() => {
+                setPickup('');
+                setRet('');
+              }}
+            >
+              Any dates
+            </Button>
+          )}
+        </div>
+        {dateError && <p className="mt-2 text-[12px] font-medium text-rose-300">{dateError}</p>}
+      </div>
+
       <div className="mb-5 flex flex-wrap items-center gap-2.5">
         <div className="relative min-w-[14rem] flex-1">
           <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -276,6 +358,15 @@ export default function Fleet() {
             <p className="text-[13px] text-slate-400">
               <span className="font-bold text-white tabular-nums">{results.length}</span> of {fleet.length} cars
               {activeCount > 0 && ' match your filters'}
+              {dates && (
+                <>
+                  {' · '}
+                  <span className="font-semibold text-emerald-300 tabular-nums">
+                    {results.filter((c) => !soldOut.has(c.id)).length} free
+                  </span>{' '}
+                  on your dates
+                </>
+              )}
             </p>
           </div>
 
@@ -295,14 +386,26 @@ export default function Fleet() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {results.map((car) => (
-                <CarCard key={car.id} car={car} onOpen={setActive} />
+                <CarCard
+                  key={car.id}
+                  car={car}
+                  onOpen={setActive}
+                  soldOut={soldOut.get(car.id) || null}
+                  query={query}
+                />
               ))}
             </div>
           )}
         </section>
       </div>
 
-      <CarModal car={active} open={Boolean(active)} onClose={() => setActive(null)} />
+      <CarModal
+        car={active}
+        open={Boolean(active)}
+        onClose={() => setActive(null)}
+        soldOut={active ? soldOut.get(active.id) || null : null}
+        query={query}
+      />
     </div>
   );
 }

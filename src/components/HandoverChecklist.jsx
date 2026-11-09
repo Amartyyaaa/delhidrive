@@ -9,7 +9,7 @@ import { useAuth } from '../lib/auth';
 import { handoverReportPdf } from '../lib/pdf';
 import { fmtDateTime, cx } from '../lib/format';
 import { Button, Badge, Field, Input, Textarea, Slider } from './ui';
-import { CAR_SIDES, sidesComplete } from '../lib/verification';
+import { REQUIRED_PHOTOS, MIN_INSPECTION_PHOTOS, photosComplete } from '../lib/verification';
 
 const CHECKLIST_ITEMS = [
   'Front bumper and grille free of damage',
@@ -79,8 +79,11 @@ export default function HandoverChecklist({ booking, car, phase, onSave }) {
       toast('Enter the odometer reading to file this inspection.', { type: 'warning' });
       return;
     }
-    if (!sidesComplete(sides)) {
-      toast('Photograph all four sides of the car before filing.', { type: 'warning' });
+    if (!photosComplete(sides)) {
+      toast(
+        `Take all ${MIN_INSPECTION_PHOTOS} photos — front, both sides, rear and the dashboard — before filing.`,
+        { type: 'warning' }
+      );
       return;
     }
     setBusy(true);
@@ -206,14 +209,15 @@ export default function HandoverChecklist({ booking, car, phase, onSave }) {
 
       <div>
         <p className="label">
-          Four sides of the car ({CAR_SIDES.filter((s) => sides[s.id]).length}/{CAR_SIDES.length})
+          Car photos · minimum {MIN_INSPECTION_PHOTOS} ({REQUIRED_PHOTOS.filter((s) => sides[s.id]).length}/
+          {REQUIRED_PHOTOS.length})
         </p>
         <p className="mb-2 text-[11.5px] leading-snug text-slate-500">
-          A timestamped baseline of every side, so any damage dispute afterwards has evidence to work
-          from.
+          A timestamped baseline of every side plus the odometer and fuel gauge, so any dispute afterwards
+          has evidence to work from.
         </p>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {CAR_SIDES.map((side) => {
+        <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {REQUIRED_PHOTOS.map((side) => {
             const shot = sides[side.id];
             return (
               <div key={side.id} className="panel-tight overflow-hidden">

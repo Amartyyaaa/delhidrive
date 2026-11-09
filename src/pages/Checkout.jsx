@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   CalendarClock,
   MapPin,
@@ -8,9 +8,7 @@ import {
   Navigation,
   UserPlus,
   Fuel,
-  QrCode,
   CreditCard,
-  Landmark,
   Banknote,
   Check,
   ChevronLeft,
@@ -20,6 +18,10 @@ import {
   Tag,
   X,
   Lock,
+  CalendarX2,
+  ExternalLink,
+  IdCard,
+  Clock3,
 } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { useAuth } from '../lib/auth';
@@ -28,25 +30,40 @@ import {
   ADDONS,
   LOCATIONS,
   PAYMENT_METHODS,
+  PAYMENT_STATUS,
+  SELF_PICKUP_HUB,
   computeQuote,
   rentalHours,
+  minRentalHours,
   FREE_LOGISTICS_FROM_DAYS,
 } from '../lib/pricing';
-import { inr, cx, fmtDuration, toLocalInput } from '../lib/format';
-import { Button, Badge, Field, Input, Toggle, Row, Spinner } from '../components/ui';
+import { clashesFor, mergeSlots, nextFreeStart, parseWindow } from '../lib/availability';
+import { paymentsReady, payForBooking } from '../lib/payments';
+import { inr, cx, fmtDuration, fmtDateTime, toLocalInput } from '../lib/format';
+import { Button, Badge, Field, Input, Row, Spinner } from '../components/ui';
 import CarArt from '../components/CarArt';
 import PhoneVerify from '../components/PhoneVerify';
+import KycPanel from '../components/KycPanel';
 import { sendBookingToWhatsapp } from '../lib/whatsapp';
-import { msg91Ready } from '../lib/otp';
 import LiveSelfie from '../components/LiveSelfie';
 import SocialProfiles from '../components/SocialProfiles';
 import DeliveryAddress from '../components/DeliveryAddress';
-import { bookingBlockers, validateSocials } from '../lib/verification';
+import { bookingBlockers, validateSocials, kycGate } from '../lib/verification';
 
 const ADDON_ICONS = { Ticket, Baby, Navigation, UserPlus, Fuel };
-const PAY_ICONS = { QrCode, CreditCard, Landmark, Banknote };
+const PAY_ICONS = { CreditCard, Banknote };
 
-function defaultWindow() {
+const KYC_BADGE = {
+  Verified: { tone: 'success', text: 'KYC verified' },
+  'Pending Review': { tone: 'warning', text: 'KYC under review' },
+  Rejected: { tone: 'danger', text: 'KYC rejected' },
+  'Not submitted': { tone: 'neutral', text: 'KYC not submitted' },
+};
+
+/** Dates handed over from the home page or the fleet, else tomorrow for two days. */
+function defaultWindow(params) {
+  const handed = parseWindow(params.get('pickup'), params.get('return'));
+  if (handed && handed.start > Date.now()) return { pickup: handed.start, drop: handed.end };
   const pickup = new Date();
   pickup.setHours(pickup.getHours() + 24, 0, 0, 0);
   const drop = new Date(pickup);
@@ -70,22 +87,35 @@ function StepHeader({ n, title, sub }) {
 
 export default function Checkout() {
   const { carId } = useParams();
+  const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { fleet, ready, activeCoupons, settings, createBooking, myKyc } = useStore();
+  const {
+    fleet,
+    ready,
+    activeCoupons,
+    settings,
+    createBooking,
+    myKyc,
+    bookings,
+    busySlots,
+    refreshBusySlots,
+  } = useStore();
   const { user } = useAuth();
   const { push, toast } = useNotify();
 
   const car = useMemo(() => fleet.find((c) => c.id === carId), [fleet, carId]);
-  const initial = useMemo(defaultWindow, []);
+  const initial = useMemo(() => defaultWindow(params), []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Self pickup from our own hub is the default; a hub picked on the home page wins.
+  const initialHub = LOCATIONS.some((l) => l.id === params.get('hub')) ? params.get('hub') : SELF_PICKUP_HUB.id;
 
   const [pickupMs, setPickupMs] = useState(initial.pickup);
   const [returnMs, setReturnMs] = useState(initial.drop);
-  const [locationId, setLocationId] = useState('airport');
-  const [dropLocationId, setDropLocationId] = useState('airport');
+  const [locationId, setLocationId] = useState(initialHub);
+  const [dropLocationId, setDropLocationId] = useState(initialHub);
   const [addons, setAddons] = useState({});
   const [couponInput, setCouponInput] = useState('');
   const [couponCode, setCouponCode] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('upi');
+  const [paymentMethod, setPaymentMethod] = useState(paymentsReady ? 'online' : 'cod');
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '' });
   const [placing, setPlacing] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(false);
@@ -93,13 +123,6 @@ export default function Checkout() {
   const [socials, setSocials] = useState({});
   const [delivery, setDelivery] = useState({ address: '', coords: null });
   const [errors, setErrors] = useState({});
-
-  useEffect(() => {
-    if (car?.hub) {
-      setLocationId(car.hub);
-      setDropLocationId(car.hub);
-    }
-  }, [car?.hub]);
 
   useEffect(() => {
     if (user) {
@@ -130,7 +153,7 @@ export default function Checkout() {
   );
 
   const hours = rentalHours(pickupMs, returnMs);
-  const minHours = settings.minRentalHours || 4;
+  const minHours = minRentalHours(settings);
   const dateError =
     returnMs <= pickupMs
       ? 'Return time must be after pickup.'
@@ -183,10 +206,20 @@ export default function Checkout() {
     }
   };
 
+  // Someone may already have this car on these dates.
+  const clashes = clashesFor(busySlots, car.id, pickupMs, returnMs);
+  const soldOut = !dateError && clashes.length > 0;
+  const bookedUntil = soldOut ? Math.max(...clashes.map((c) => c.end)) : 0;
+  const nextFree = soldOut ? nextFreeStart(busySlots, car.id, pickupMs, returnMs - pickupMs) : null;
+  const selfPickup = locationId === SELF_PICKUP_HUB.id || dropLocationId === SELF_PICKUP_HUB.id;
+  const kyc = kycGate(myKyc);
+  const payOnline = paymentMethod === 'online';
+
   // Identity checks that must pass before a booking can be placed, plus a
   // delivery address whenever the car is coming to the customer.
   const blockers = [
-    ...bookingBlockers({ selfieUri: selfie.uri, socials }),
+    ...(soldOut ? ['This car is sold out for these dates.'] : []),
+    ...bookingBlockers({ selfieUri: selfie.uri, socials, kyc: myKyc }),
     ...((locationId === 'home' || dropLocationId === 'home') && !delivery.address?.trim()
       ? ['Add the delivery address.']
       : []),
@@ -220,6 +253,17 @@ export default function Checkout() {
     }
     setPlacing(true);
     try {
+      // One last look: someone may have taken the car since this page loaded.
+      const fresh = await refreshBusySlots();
+      const latest = fresh ? mergeSlots(fresh, bookings) : busySlots;
+      if (clashesFor(latest, car.id, pickupMs, returnMs).length) {
+        toast('Sorry — this car was just booked for those dates. Pick other dates or another car.', {
+          type: 'error',
+          title: 'Sold out',
+        });
+        return;
+      }
+
       const ref = 'DD' + Date.now().toString(36).toUpperCase().slice(-6);
       const booking = {
         ref,
@@ -228,6 +272,7 @@ export default function Checkout() {
         carName: car.name,
         carPlate: car.plate || '',
         carCategory: car.category,
+        carSeats: Number(car.seats) || 5,
         customerName: customer.name.trim(),
         customerEmail: customer.email.trim(),
         customerPhone: customer.phone.trim(),
@@ -245,41 +290,53 @@ export default function Checkout() {
         addons,
         couponCode,
         paymentMethod,
-        paymentStatus: paymentMethod === 'cod' ? 'Pay on delivery' : 'Paid',
-        txnRef: paymentMethod === 'cod' ? '' : 'TXN' + Math.random().toString(36).slice(2, 12).toUpperCase(),
-        status: 'Confirmed',
-        kycStatus: myKyc?.status || 'Pending Review',
+        paymentStatus: payOnline ? PAYMENT_STATUS.awaiting : PAYMENT_STATUS.atPickup,
+        txnRef: '',
+        // Confirmed straight away only for a verified renter; otherwise it
+        // waits for operations to check the documents and accept it.
+        status: kyc.verified ? 'Confirmed' : 'Under review',
+        kycStatus: kyc.status,
         quote,
         inspections: {},
         createdAtMs: Date.now(),
       };
       const id = await createBooking(booking);
+      const held = kyc.verified
+        ? `${car.name} is reserved for ${new Date(pickupMs).toLocaleDateString('en-IN')}.`
+        : `${car.name} is held for ${new Date(pickupMs).toLocaleDateString('en-IN')} — confirmed once your documents are verified.`;
 
-      // Hand the booking summary to operations on WhatsApp. Opened straight
-      // after the click so the browser still counts it as user-initiated.
-      const opened = sendBookingToWhatsapp(booking, car);
-      if (!opened) {
-        toast('Allow pop-ups to send the booking to WhatsApp, or open it from My Bookings.', {
-          type: 'warning',
-        });
+      if (payOnline) {
+        try {
+          await payForBooking({ ...booking, id });
+          push('Payment received · ' + ref, `${inr(quote.payable)} paid. ${held}`, {
+            type: 'success',
+            tag: 'booking-' + ref,
+          });
+        } catch (err) {
+          if (err.cancelled) {
+            toast('Payment not completed. The car is held for 30 minutes — pay from My Bookings.', {
+              type: 'warning',
+            });
+          } else {
+            toast(err.message || 'Payment could not be completed. Try again from My Bookings.', {
+              type: 'error',
+            });
+          }
+        }
+      } else {
+        // Hand the booking summary to operations on WhatsApp.
+        const opened = sendBookingToWhatsapp(booking, car);
+        if (!opened) {
+          toast('Allow pop-ups to send the booking to WhatsApp, or open it from My Bookings.', {
+            type: 'warning',
+          });
+        }
+        push(
+          (kyc.verified ? 'Booking confirmed · ' : 'Booking received · ') + ref,
+          `${held} Pay ${inr(quote.payable)} at pickup.`,
+          { tag: 'booking-' + ref }
+        );
       }
-
-      push(
-        'Booking confirmed · ' + ref,
-        `${car.name} is reserved for ${new Date(pickupMs).toLocaleDateString('en-IN')}. Total paid ${inr(
-          quote.payable
-        )}.`,
-        { tag: 'booking-' + ref }
-      );
-      setTimeout(
-        () =>
-          push(
-            'Payment receipt generated',
-            `GST invoice INV-${ref} for ${inr(quote.payable)} is ready to download from My Bookings.`,
-            { tag: 'receipt-' + ref, type: 'success' }
-          ),
-        1600
-      );
 
       navigate('/dashboard', { state: { highlight: id, justBooked: ref } });
     } catch (err) {
@@ -290,11 +347,7 @@ export default function Checkout() {
     }
   };
 
-  const kycBadge = {
-    Verified: { tone: 'success', text: 'KYC verified' },
-    'Pending Review': { tone: 'warning', text: 'KYC pending review' },
-    Rejected: { tone: 'danger', text: 'KYC rejected' },
-  }[myKyc?.status || 'Pending Review'];
+  const kycBadge = KYC_BADGE[kyc.status] || KYC_BADGE['Not submitted'];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -337,7 +390,11 @@ export default function Checkout() {
 
           {/* 1 — dates */}
           <section className="panel p-5">
-            <StepHeader n={1} title="Pickup & return" sub="Part-days round up to a full chargeable day." />
+            <StepHeader
+              n={1}
+              title="Pickup & return"
+              sub={`Minimum ${minHours} hours. Up to 12 hours bills the 12-hour slab; longer trips bill per day, part-days rounded up.`}
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Pickup date & time">
                 <Input
@@ -382,7 +439,9 @@ export default function Checkout() {
                     <CalendarClock size={14} className="text-brand-300" />
                     Chargeable{' '}
                     <strong className="text-white">
-                      {quote.days} day{quote.days > 1 ? 's' : ''}
+                      {quote.charge.tier === 'daily'
+                        ? `${quote.days} day${quote.days > 1 ? 's' : ''}`
+                        : quote.charge.label}
                     </strong>
                   </span>
                   <span className="text-[13px] text-slate-300">
@@ -396,6 +455,42 @@ export default function Checkout() {
                 </>
               )}
             </div>
+
+            {soldOut && (
+              <div className="mt-3 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3">
+                <p className="flex items-center gap-2 text-[13.5px] font-semibold text-rose-200">
+                  <CalendarX2 size={15} /> Sold out for these dates
+                </p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-rose-100/80">
+                  This car is already booked until {fmtDateTime(bookedUntil)}. Choose other dates, or another car.
+                </p>
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  {nextFree && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        const length = returnMs - pickupMs;
+                        setPickupMs(nextFree);
+                        setReturnMs(nextFree + length);
+                      }}
+                    >
+                      Move to {fmtDateTime(nextFree)}
+                    </Button>
+                  )}
+                  <Button
+                    as={Link}
+                    size="sm"
+                    variant="ghost"
+                    to={`/fleet?pickup=${encodeURIComponent(toLocalInput(pickupMs))}&return=${encodeURIComponent(
+                      toLocalInput(returnMs)
+                    )}`}
+                  >
+                    See cars free on these dates
+                  </Button>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* 2 — locations */}
@@ -403,7 +498,7 @@ export default function Checkout() {
             <StepHeader
               n={2}
               title="Where do you want the car?"
-              sub="Return it to a different hub if you like — the destination hub's fee applies."
+              sub="Self pickup from our Kaushambi hub is free. Other hubs and delivery carry a fee each way."
             />
             <div className="grid gap-4 sm:grid-cols-2">
               {[
@@ -447,6 +542,44 @@ export default function Checkout() {
                 </div>
               ))}
             </div>
+
+            {selfPickup && (
+              <div className="mt-4 overflow-hidden rounded-xl border border-brand-400/25 bg-brand-500/[0.06]">
+                <div className="flex flex-wrap items-start justify-between gap-3 p-4">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-[13.5px] font-semibold text-white">
+                      <MapPin size={14} className="text-brand-300" /> {SELF_PICKUP_HUB.note}
+                    </p>
+                    <p className="mt-1 text-[12px] text-slate-300">{SELF_PICKUP_HUB.address}</p>
+                    <p className="mt-1 text-[11.5px] text-slate-500">
+                      {locationId === SELF_PICKUP_HUB.id && dropLocationId === SELF_PICKUP_HUB.id
+                        ? 'Collect and return the car yourself at our hub — no pickup or drop fee.'
+                        : locationId === SELF_PICKUP_HUB.id
+                          ? 'Collect the car yourself at our hub — no pickup fee.'
+                          : 'Return the car yourself to our hub — no drop fee.'}
+                    </p>
+                  </div>
+                  <Button
+                    as="a"
+                    href={SELF_PICKUP_HUB.mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    size="sm"
+                    variant="secondary"
+                    icon={ExternalLink}
+                  >
+                    Open in Maps
+                  </Button>
+                </div>
+                <iframe
+                  title="Kaushambi Metro Station on the map"
+                  src={SELF_PICKUP_HUB.embedUrl}
+                  className="h-56 w-full border-0"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
+            )}
           </section>
 
           {/* 3 — add-ons */}
@@ -549,85 +682,88 @@ export default function Checkout() {
               </div>
             )}
 
-            {myKyc?.status !== 'Verified' && (
-              <p className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3.5 py-2.5 text-[12.5px] text-amber-200">
-                You can book now, but handover needs a verified profile. Upload your licence and Aadhaar from{' '}
-                <Link to="/dashboard" className="font-semibold underline">
-                  Dashboard → KYC
-                </Link>
-                .
+            <div className="mt-4 border-t border-white/[0.07] pt-4">
+              <p className="label flex items-center gap-1.5">
+                <IdCard size={12} /> KYC documents
               </p>
-            )}
+              {kyc.verified ? (
+                <p className="flex items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/[0.08] px-3.5 py-2.5 text-[12.5px] text-emerald-200">
+                  <ShieldCheck size={14} /> Your licence and Aadhaar are verified — this booking is confirmed
+                  instantly.
+                </p>
+              ) : kyc.submitted ? (
+                <p className="flex items-start gap-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3.5 py-2.5 text-[12.5px] text-amber-200">
+                  <Clock3 size={14} className="mt-0.5 shrink-0" />
+                  Your documents are with our team. You can book now — the booking is confirmed as soon as
+                  they are verified.
+                </p>
+              ) : !user ? (
+                <p className="rounded-xl border border-white/10 bg-ink-950/50 px-3.5 py-2.5 text-[12.5px] text-slate-300">
+                  KYC is required to book.{' '}
+                  <Link
+                    to="/login"
+                    state={{ from: `/checkout/${car.id}` }}
+                    className="font-semibold text-brand-300 underline"
+                  >
+                    Sign in
+                  </Link>{' '}
+                  to upload your driving licence and Aadhaar.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <p className="rounded-xl border border-rose-400/25 bg-rose-500/10 px-3.5 py-2.5 text-[12.5px] text-rose-200">
+                    {kyc.blocker} It takes a minute — upload them here and submit.
+                  </p>
+                  <KycPanel />
+                </div>
+              )}
+            </div>
           </section>
 
           {/* 5 — payment */}
           <section className="panel p-5">
-            <StepHeader n={5} title="Payment method" sub="Deposit is collected with the rental and refunded after return." />
-            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+            <StepHeader n={5} title="Payment" sub="The deposit is collected with the rental and refunded after return." />
+            <div className="grid gap-2.5 sm:grid-cols-2">
               {PAYMENT_METHODS.map((p) => {
                 const Icon = PAY_ICONS[p.icon] || CreditCard;
                 const on = paymentMethod === p.id;
+                const off = p.id === 'online' && !paymentsReady;
                 return (
                   <button
                     key={p.id}
                     type="button"
+                    disabled={off}
                     onClick={() => setPaymentMethod(p.id)}
                     className={cx(
                       'rounded-xl border p-3.5 text-left transition',
-                      on ? 'border-brand-400/50 bg-brand-500/12' : 'border-white/10 hover:border-white/25'
+                      on ? 'border-brand-400/50 bg-brand-500/12' : 'border-white/10 hover:border-white/25',
+                      off && 'cursor-not-allowed opacity-50 hover:border-white/10'
                     )}
                   >
                     <Icon size={17} className={on ? 'text-brand-300' : 'text-slate-500'} />
                     <p className="mt-2 text-[13px] font-semibold text-white">{p.label}</p>
-                    <p className="mt-0.5 text-[11px] text-slate-500">{p.desc}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      {off ? 'Being set up — pay at pickup for now' : p.desc}
+                    </p>
                   </button>
                 );
               })}
             </div>
 
-            {paymentMethod === 'upi' && (
-              <div className="mt-4 flex flex-col items-center gap-4 rounded-xl border border-white/10 bg-ink-950/50 p-5 sm:flex-row">
-                <div className="rounded-xl bg-white p-2.5">
-                  <svg viewBox="0 0 29 29" className="h-28 w-28" shapeRendering="crispEdges">
-                    {/* deterministic pseudo-QR built from the amount so it changes with the cart */}
-                    {Array.from({ length: 29 }).map((_, y) =>
-                      Array.from({ length: 29 }).map((__, x) => {
-                        const finder =
-                          (x < 7 && y < 7) || (x > 21 && y < 7) || (x < 7 && y > 21);
-                        if (finder) {
-                          const lx = x > 21 ? x - 22 : x;
-                          const ly = y > 21 ? y - 22 : y;
-                          const edge = lx === 0 || lx === 6 || ly === 0 || ly === 6;
-                          const core = lx >= 2 && lx <= 4 && ly >= 2 && ly <= 4;
-                          return edge || core ? (
-                            <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="#0d1120" />
-                          ) : null;
-                        }
-                        const seed = (x * 31 + y * 17 + Math.round(quote.payable / 7)) % 11;
-                        return seed < 5 ? (
-                          <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="#0d1120" />
-                        ) : null;
-                      })
-                    )}
-                  </svg>
-                </div>
-                <div className="text-center sm:text-left">
-                  <p className="text-[13px] font-semibold text-white">Scan to pay {inr(quote.payable)}</p>
-                  <p className="mt-1 text-[12px] text-slate-400">
-                    UPI ID <span className="font-mono text-brand-200">delhidrive@okhdfcbank</span>
-                  </p>
-                  <p className="mt-2 max-w-xs text-[11.5px] leading-relaxed text-slate-500">
-                    Works with GPay, PhonePe, Paytm and any BHIM-compatible app. The reservation is held for
-                    10 minutes while the payment settles.
-                  </p>
-                </div>
-              </div>
+            {paymentMethod === 'online' && (
+              <p className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/[0.08] px-3.5 py-2.5 text-[12.5px] text-emerald-100">
+                <Lock size={14} className="mt-0.5 shrink-0 text-emerald-300" />
+                <span>
+                  Secure checkout by Razorpay — UPI, cards, netbanking and wallets. You pay {inr(quote.payable)} in
+                  the next step{kyc.verified ? '' : '; if we cannot approve the booking, it is refunded in full'}.
+                </span>
+              </p>
             )}
 
             {paymentMethod === 'cod' && (
               <p className="mt-4 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3.5 py-2.5 text-[12.5px] text-amber-200">
-                Cash on delivery requires the full amount including the {inr(quote.deposit)} deposit in cash at
-                handover. Available for Delhi NCR addresses only.
+                Pay the full {inr(quote.payable)}, including the {inr(quote.deposit)} refundable deposit, in cash or
+                UPI at handover.
               </p>
             )}
           </section>
@@ -763,20 +899,46 @@ export default function Checkout() {
               </ul>
             )}
 
+            {kyc.submitted && !kyc.verified && (
+              <p className="mt-4 text-[11.5px] leading-relaxed text-amber-200/90">
+                Your documents are under review, so this booking is confirmed once they are verified.
+              </p>
+            )}
+
             <Button
               size="lg"
               className="mt-4 w-full"
               onClick={placeBooking}
               loading={placing}
-              disabled={placing || Boolean(dateError)}
+              disabled={placing || Boolean(dateError) || soldOut}
               icon={placing ? undefined : Lock}
             >
-              {placing ? 'Confirming…' : `Pay ${inr(quote.payable)}`}
+              {placing
+                ? payOnline
+                  ? 'Opening payment…'
+                  : 'Booking…'
+                : soldOut
+                  ? 'Sold out for these dates'
+                  : payOnline
+                    ? `Pay ${inr(quote.payable)}`
+                    : kyc.verified
+                      ? 'Confirm booking'
+                      : 'Request booking'}
             </Button>
 
             <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-500">
-              Free cancellation up to {settings.cancellationWindowHours}h before pickup. Late returns are billed
-              at {inr(quote.latePenaltyPerHour)}/hour.
+              Free cancellation up to {settings.cancellationWindowHours}h before pickup. Late return on this{' '}
+              {Number(car.seats) >= 7 ? '7-seater' : '5-seater'} costs {inr(quote.latePenaltyPerHour)}/hour until
+              we receive the car. By booking you accept our{' '}
+              <a
+                href={`${import.meta.env.BASE_URL}terms.html`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-300 underline"
+              >
+                terms & conditions
+              </a>
+              .
             </p>
           </div>
         </aside>

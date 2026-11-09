@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Save, RotateCcw, SlidersHorizontal, Database, HardDrive, FileDown } from 'lucide-react';
 import { useStore } from '../../lib/store';
 import { useNotify } from '../../lib/notify';
-import { DEFAULT_SETTINGS } from '../../lib/pricing';
+import { DEFAULT_SETTINGS, MIN_RENTAL_HOURS } from '../../lib/pricing';
 import { supabaseReady } from '../../lib/supabase';
 import { featureAuditPdf } from '../../lib/pdf';
 import { inr } from '../../lib/format';
@@ -24,9 +24,15 @@ const FIELDS = [
     step: '500',
   },
   {
-    key: 'latePenaltyPerHour',
-    label: 'Late return penalty (₹ / hour)',
-    hint: 'Charged in full-hour blocks after a 29-minute grace period.',
+    key: 'latePenalty5Seater',
+    label: 'Late penalty · 5-seater (₹ / hour)',
+    hint: 'Hatchbacks, sedans and 5-seat SUVs. Full-hour blocks after a 29-minute grace period.',
+    step: '50',
+  },
+  {
+    key: 'latePenalty7Seater',
+    label: 'Late penalty · 7-seater (₹ / hour)',
+    hint: 'Cars with 7 or more seats. Runs until the car is marked received.',
     step: '50',
   },
   {
@@ -50,7 +56,7 @@ const FIELDS = [
   {
     key: 'minRentalHours',
     label: 'Minimum rental duration (hours)',
-    hint: 'Checkout blocks anything shorter than this.',
+    hint: `Checkout blocks anything shorter. ${MIN_RENTAL_HOURS} hours (the 12-hour slab) is the floor.`,
     step: '1',
   },
   {
@@ -77,6 +83,12 @@ export default function SettingsPanel() {
       const numeric = Object.fromEntries(
         FIELDS.map((f) => [f.key, Number(draft[f.key])])
       );
+      if (!(numeric.minRentalHours >= MIN_RENTAL_HOURS)) {
+        numeric.minRentalHours = MIN_RENTAL_HOURS;
+        toast(`Minimum rental cannot go below ${MIN_RENTAL_HOURS} hours — saved as ${MIN_RENTAL_HOURS}.`, {
+          type: 'warning',
+        });
+      }
       await saveSettings({ ...numeric, festiveEnabled: Boolean(draft.festiveEnabled) });
       push('Platform settings saved', 'New rates apply to every quote from now on.', { type: 'success' });
     } catch (err) {
@@ -138,7 +150,8 @@ export default function SettingsPanel() {
             <strong className="text-white">{inr(previewBase)}</strong> before add-ons (surge ×
             {previewSurge.toFixed(2)}), plus <strong className="text-white">{inr(previewGst)}</strong> GST, plus a{' '}
             <strong className="text-white">{inr(draft.securityDeposit)}</strong> refundable deposit. Late return
-            costs <strong className="text-white">{inr(draft.latePenaltyPerHour)}</strong> per hour.
+            costs <strong className="text-white">{inr(draft.latePenalty5Seater)}</strong> per hour on a 5-seater and{' '}
+            <strong className="text-white">{inr(draft.latePenalty7Seater)}</strong> per hour on a 7-seater.
           </p>
         </div>
 

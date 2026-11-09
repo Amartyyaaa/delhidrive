@@ -13,6 +13,8 @@ import {
   Users,
   AlertTriangle,
   Wrench,
+  ClipboardList,
+  Repeat,
 } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { ymd, inr, cx } from '../lib/format';
@@ -24,9 +26,13 @@ import KycPortal from '../components/admin/KycPortal';
 import CouponCreator from '../components/admin/CouponCreator';
 import SettingsPanel from '../components/admin/SettingsPanel';
 import AdminTickets from '../components/admin/AdminTickets';
+import BookingsManager from '../components/admin/BookingsManager';
+import SubscriptionsPanel from '../components/admin/SubscriptionsPanel';
+import { bookingPhase } from '../lib/rental';
 
 function Overview({ bookings, fleet, kycDocs, tickets }) {
-  const live = bookings.filter((b) => b.status !== 'Cancelled');
+  // Cancelled and rejected bookings earn nothing.
+  const live = bookings.filter((b) => b.status !== 'Cancelled' && b.status !== 'Rejected');
   const now = Date.now();
 
   const revenue = live.reduce((s, b) => s + ((b.quote?.taxable || 0) + (b.quote?.gst || 0)), 0);
@@ -35,6 +41,8 @@ function Overview({ bookings, fleet, kycDocs, tickets }) {
   const pendingKyc = kycDocs.filter((k) => k.status === 'Pending Review').length;
   const openTickets = tickets.filter((t) => t.status !== 'Resolved' && t.status !== 'Closed').length;
   const maintenance = fleet.filter((c) => c.status === 'maintenance').length;
+  const underReview = bookings.filter((b) => bookingPhase(b, now) === 'review').length;
+  const overdue = bookings.filter((b) => bookingPhase(b, now) === 'overdue').length;
   const utilisation = fleet.length ? onRoad / fleet.length : 0;
 
   // Revenue for the trailing 12 months.
@@ -98,8 +106,8 @@ function Overview({ bookings, fleet, kycDocs, tickets }) {
         <Stat label="Upcoming pickups" value={upcoming} sub="Reserved and paid" icon={Users} tone="info" />
         <Stat
           label="Needs attention"
-          value={pendingKyc + openTickets + maintenance}
-          sub={`${pendingKyc} KYC · ${openTickets} tickets · ${maintenance} in service`}
+          value={underReview + overdue + pendingKyc + openTickets}
+          sub={`${underReview} to accept · ${overdue} overdue · ${pendingKyc} KYC · ${openTickets} tickets`}
           icon={AlertTriangle}
           tone="warning"
         />
@@ -196,14 +204,17 @@ export default function Admin() {
 
   const pendingKyc = kycDocs.filter((k) => k.status === 'Pending Review').length;
   const openTickets = tickets.filter((t) => t.status !== 'Resolved' && t.status !== 'Closed').length;
+  const needsAction = bookings.filter((b) => ['review', 'overdue'].includes(bookingPhase(b))).length;
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'bookings', label: 'Bookings', icon: ClipboardList, count: needsAction || undefined },
     { id: 'demand', label: 'Demand heatmap', icon: Flame },
     { id: 'slots', label: 'Slot inspector', icon: CalendarSearch },
     { id: 'fleet', label: 'Fleet inventory', icon: Car, count: fleet.length },
     { id: 'kyc', label: 'KYC portal', icon: IdCard, count: pendingKyc || undefined },
     { id: 'coupons', label: 'Promotions', icon: Tag },
+    { id: 'subscriptions', label: 'Subscriptions', icon: Repeat },
     { id: 'tickets', label: 'Support', icon: LifeBuoy, count: openTickets || undefined },
     { id: 'settings', label: 'Settings', icon: SlidersHorizontal },
   ];
@@ -258,9 +269,11 @@ export default function Admin() {
       {tab === 'slots' && (
         <SlotInspector day={day} bookings={bookings} fleet={fleet} onPatchBooking={patchBooking} />
       )}
+      {tab === 'bookings' && <BookingsManager />}
       {tab === 'fleet' && <InventoryManager />}
       {tab === 'kyc' && <KycPortal />}
       {tab === 'coupons' && <CouponCreator />}
+      {tab === 'subscriptions' && <SubscriptionsPanel />}
       {tab === 'tickets' && <AdminTickets />}
       {tab === 'settings' && <SettingsPanel />}
     </div>

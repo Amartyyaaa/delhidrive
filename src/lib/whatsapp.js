@@ -100,3 +100,29 @@ export function sendBookingToWhatsapp(booking, car) {
 export function supportWhatsappUrl(text = 'Hello DelhiDrive, I need help with a booking.') {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Messages to the customer                                            */
+/* ------------------------------------------------------------------ */
+
+/** wa.me link that opens a chat with the customer, message pre-filled. */
+export function customerWhatsappUrl(phone, text) {
+  let digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length === 10) digits = `91${digits}`;
+  if (digits.length === 11 && digits.startsWith('0')) digits = `91${digits.slice(1)}`;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
+
+/** Telling a customer their booking could not be accepted, and why. */
+export function rejectionMessage(booking, { refund = 0 } = {}) {
+  return [
+    '*DELHIDRIVE — BOOKING UPDATE*',
+    '',
+    `Hi ${String(booking.customerName || '').split(' ')[0] || 'there'}, we are sorry — we could not accept booking *${booking.ref}* (${booking.carName}, ${dt(booking.pickupMs)}).`,
+    '',
+    `Reason: ${booking.rejectionReason || 'not specified'}`,
+    ...(refund > 0 ? ['', `Your payment of ${inr(refund)} will be refunded to the original payment method within 7 working days.`] : []),
+    '',
+    'Reply here if you have questions, or to book again once this is sorted.',
+  ].join('\n');
+}

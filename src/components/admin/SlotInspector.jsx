@@ -22,6 +22,7 @@ import { useNotify } from '../../lib/notify';
 import { LOCATIONS, locationLabel } from '../../lib/pricing';
 import { inr, fmtTime, cx } from '../../lib/format';
 import { Button, Badge, Empty, Input } from '../ui';
+import ReceiveCarModal from './ReceiveCarModal';
 
 const BANDS = [
   { id: 'morning', label: 'Morning', sub: '06:00 – 11:59', icon: Sunrise, from: 6, to: 12 },
@@ -43,6 +44,7 @@ export default function SlotInspector({ day, bookings, fleet, onPatchBooking }) 
   const { push, toast } = useNotify();
   const [openRef, setOpenRef] = useState(null);
   const [dayValue, setDayValue] = useState(day);
+  const [receiving, setReceiving] = useState(null);
 
   const activeDay = dayValue || day;
   const start = new Date(`${activeDay}T00:00:00`).getTime();
@@ -59,7 +61,7 @@ export default function SlotInspector({ day, bookings, fleet, onPatchBooking }) 
   const returns = useMemo(
     () =>
       bookings
-        .filter((b) => b.status !== 'Cancelled' && b.returnMs >= start && b.returnMs <= end)
+        .filter((b) => !['Cancelled', 'Rejected'].includes(b.status) && b.returnMs >= start && b.returnMs <= end)
         .sort((a, b) => a.returnMs - b.returnMs),
     [bookings, start, end]
   );
@@ -81,24 +83,26 @@ export default function SlotInspector({ day, bookings, fleet, onPatchBooking }) 
   }));
 
   const dayRevenue = pickups
-    .filter((b) => b.status !== 'Cancelled')
+    .filter((b) => !['Cancelled', 'Rejected'].includes(b.status))
     .reduce((s, b) => s + ((b.quote?.taxable || 0) + (b.quote?.gst || 0)), 0);
 
   const trigger = async (booking, action) => {
+    if (action === 'return') {
+      // Closing a rental fixes the late charge, so it goes through Car received.
+      setReceiving(booking);
+      return;
+    }
+    if (booking.kycStatus !== 'Verified') {
+      toast('Verify the renter’s KYC before handing the car over.', { type: 'warning' });
+      return;
+    }
     try {
-      if (action === 'handover') {
-        await onPatchBooking(booking.id, { handoverAt: Date.now(), status: 'Handed over' });
-        push(
-          'Handover triggered · ' + booking.ref,
-          `${booking.carName} released to ${booking.customerName} at ${hubName(booking.locationId)}.`,
-          { type: 'success' }
-        );
-      } else {
-        await onPatchBooking(booking.id, { returnedAt: Date.now(), status: 'Returned' });
-        push('Return logged · ' + booking.ref, `${booking.carName} is back in the fleet.`, {
-          type: 'success',
-        });
-      }
+      await onPatchBooking(booking.id, { handoverAt: Date.now(), status: 'Handed over' });
+      push(
+        'Handover triggered · ' + booking.ref,
+        `${booking.carName} released to ${booking.customerName} at ${hubName(booking.locationId)}.`,
+        { type: 'success' }
+      );
     } catch (err) {
       toast(err.message || 'Could not update the booking.', { type: 'error' });
     }
@@ -121,6 +125,8 @@ export default function SlotInspector({ day, bookings, fleet, onPatchBooking }) 
               <span className="truncate text-[13px] font-semibold text-white">{b.carName}</span>
               <span className="font-mono text-[10.5px] text-slate-500">{b.ref}</span>
               {b.status === 'Cancelled' && <Badge tone="danger">Cancelled</Badge>}
+              {b.status === 'Rejected' && <Badge tone="danger">Rejected</Badge>}
+              {b.status === 'Under review' && <Badge tone="warning">Under review</Badge>}
               {b.status === 'Handed over' && <Badge tone="info">Handed over</Badge>}
               {b.status === 'Returned' && <Badge tone="neutral">Returned</Badge>}
             </span>
@@ -167,12 +173,13 @@ export default function SlotInspector({ day, bookings, fleet, onPatchBooking }) 
                 >
                   Invoice
                 </Button>
-                {b.status !== 'Cancelled' && mode === 'pickup' && b.status !== 'Handed over' && (
+                {!['Cancelled', 'Rejected', 'Under review', 'Handed over', 'Returned'].includes(b.status) &&
+                  mode === 'pickup' && (
                   <Button size="sm" icon={KeyRound} onClick={() => trigger(b, 'handover')}>
                     Trigger handover
                   </Button>
                 )}
-                {b.status !== 'Cancelled' && mode === 'return' && b.status !== 'Returned' && (
+                {!['Cancelled', 'Rejected', 'Under review', 'Returned'].includes(b.status) && mode === 'return' && (
                   <Button size="sm" variant="success" icon={CheckCheck} onClick={() => trigger(b, 'return')}>
                     Log return
                   </Button>
@@ -257,6 +264,8 @@ export default function SlotInspector({ day, bookings, fleet, onPatchBooking }) 
           </div>
         </div>
       </div>
+
+      <ReceiveCarModal booking={receiving} onClose={() => setReceiving(null)} />
 
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="panel p-5">

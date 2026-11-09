@@ -1,7 +1,11 @@
 # notify-telegram — booking alerts, fired by the database
 
 Posts a Telegram message the moment a booking, KYC submission or subscription
-row is inserted. The bot token lives in Supabase's secret store and **never**
+row is inserted, and again when a booking changes: accepted, rejected,
+cancelled, edited (car or dates), paid, handed over or received back — and when
+a KYC is re-submitted after a rejection. Every 15 minutes it also checks for
+cars past their return time that nobody has marked received, and alerts once
+for each. The bot token lives in Supabase's secret store and **never**
 ships inside the app.
 
 **Why it moved here.** Everything in the app's `.env` gets compiled into the
@@ -70,9 +74,19 @@ folder, replace the two placeholders at the top, and Run:
 - `<PROJECT_REF>` → `joobrzcchmgwixcdmozi`
 - `<ANON_KEY>` → your publishable key (Settings → API Keys)
 
-That creates one trigger function and attaches it to `bookings`, `kyc` and
-`subscriptions`. It also creates the `subscriptions` table if the website's
-original setup script predates that feature.
+That attaches the alert triggers to `bookings`, `kyc` and `subscriptions` —
+new rows, and the booking changes listed at the top — and schedules the
+overdue-car check every 15 minutes with `pg_cron`. It also creates the
+`subscriptions` table if the website's original setup script predates that
+feature. `supabase-telegram-webhooks-READY.sql` in the project root is the same
+script with both placeholders already filled in.
+
+If it stops at `create extension if not exists pg_cron`, switch the extension
+on under **Database → Extensions** (search "pg_cron") and run it again.
+
+**Already set this up before?** Run the script again and redeploy both
+functions (steps 4 and the `telegram-webhook` deploy below): the update alerts,
+the overdue check and the "Send T&C to customer" button are new.
 
 ---
 
@@ -113,7 +127,10 @@ this is the only place the alert text lives now.
 
 Booking alerts carry **✅ Accept** and **❌ Reject** buttons. Tapping one writes
 the decision straight to the database and edits the message to record who
-decided and when — so the chat becomes the audit trail.
+decided and when — so the chat becomes the audit trail. An accepted booking's
+message gains a **📤 Send T&C to customer on WhatsApp** button, which opens a chat
+with the customer with the confirmation, the key terms and a link to the full
+terms page already written.
 
 Rejecting shows the six standard reasons first; the one you pick is stored on
 the booking and is what the customer is told.
