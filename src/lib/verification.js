@@ -47,6 +47,18 @@ export const SOCIAL_PLATFORMS = [
 /** How many social profiles a renter must supply. */
 export const MIN_SOCIAL_PROFILES = 1;
 
+const SITE_HOSTS = [...SOCIAL_PLATFORMS.map((p) => p.host), 'fb.com'];
+
+/**
+ * Is this a link rather than a bare username? Usernames on all three sites may
+ * contain dots ("ravi.k"), so a dot alone proves nothing: a link has a slash or
+ * a scheme, starts with "www.", or is one of the sites' own addresses.
+ */
+function looksLikeLink(value) {
+  const v = value.toLowerCase();
+  return /[/:]/.test(v) || v.startsWith('www.') || SITE_HOSTS.some((h) => v === h || v.endsWith(`.${h}`));
+}
+
 /**
  * Turn whatever the renter typed into a canonical profile URL.
  *
@@ -63,7 +75,7 @@ export function normaliseSocial(platformId, raw) {
   if (!value) return { ok: false, reason: '' };
 
   // A full or partial URL — pull the path out and check the host matches.
-  if (/[./]/.test(value)) {
+  if (looksLikeLink(value)) {
     const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
     let parsed;
     try {
