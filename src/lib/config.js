@@ -24,3 +24,13 @@ export const WHATSAPP_NUMBER = String(import.meta.env.VITE_WHATSAPP_NUMBER || '9
 );
 
 export const COMPANY_PHONE = '+91 99112 05522';
+
+/** Public address of the website — used in links sent to customers outside the app. */
+export const SITE_URL = String(import.meta.env.VITE_SITE_URL || 'https://delhidrive.in').replace(/\/+$/, '');
+
+/**
+ * Razorpay key id (rzp_live_… or rzp_test_…). It is public by design — the key
+ * SECRET lives only in the `razorpay` Supabase Edge Function. Leave it empty
+ * and checkout offers pay-at-pickup only.
+ */
+export const RAZORPAY_KEY_ID = String(import.meta.env.VITE_RAZORPAY_KEY_ID || '').trim();

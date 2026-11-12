@@ -20,7 +20,6 @@ const BLANK = {
   seats: 5,
   mileage: 18,
   rate: 1500,
-  rate6h: 600,
   rate12h: 900,
   extraKmCharge: 8,
   engineCc: 1200,
@@ -69,7 +68,6 @@ export default function InventoryManager() {
         seats: Number(rest.seats),
         mileage: Number(rest.mileage),
         rate: Number(rest.rate),
-        rate6h: Number(rest.rate6h) || 0,
         rate12h: Number(rest.rate12h) || 0,
         extraKmCharge: Number(rest.extraKmCharge) || 0,
         engineCc: Number(rest.engineCc),
@@ -320,8 +318,7 @@ export default function InventoryManager() {
 
             <div className="grid gap-4 sm:grid-cols-4">
               {[
-                ['Up to 6 hours (₹)', 'rate6h'],
-                ['Up to 12 hours (₹)', 'rate12h'],
+                ['12-hour slab (₹)', 'rate12h'],
                 ['Full day / 24h (₹)', 'rate'],
                 ['Deposit (₹)', 'deposit'],
                 ['Extra km charge (₹)', 'extraKmCharge'],

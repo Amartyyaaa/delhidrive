@@ -2,9 +2,20 @@
 // down, so screens stay declarative and database reads stay minimal.
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { COL, watchCollection, watchDoc, addItem, setItem, updateItem, deleteItem, seedIfEmpty } from './db';
+import {
+  COL,
+  watchCollection,
+  watchDoc,
+  addItem,
+  setItem,
+  updateItem,
+  deleteItem,
+  seedIfEmpty,
+  loadBusySlots,
+} from './db';
 import { supabaseReady } from './supabase';
-import { DEFAULT_SETTINGS } from './pricing';
+import { normaliseSettings } from './pricing';
+import { mergeSlots } from './availability';
 import { FLEET_SEED, COUPONS_SEED } from '../data/fleet';
 import { useAuth } from './auth';
 
@@ -18,7 +29,9 @@ export function StoreProvider({ children }) {
   const [coupons, setCoupons] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [kycDocs, setKycDocs] = useState([]);
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState(() => normaliseSettings());
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [remoteSlots, setRemoteSlots] = useState(null);
   const [ready, setReady] = useState(false);
   const seeded = useRef({ fleet: false, coupons: false });
 
@@ -51,10 +64,41 @@ export function StoreProvider({ children }) {
       watchCollection(COL.bookings, setBookings),
       watchCollection(COL.tickets, setTickets),
       watchCollection(COL.kyc, setKycDocs),
-      watchDoc(COL.settings, SETTINGS_DOC, (d) => setSettings({ ...DEFAULT_SETTINGS, ...(d || {}) })),
+      watchDoc(COL.settings, SETTINGS_DOC, (d) => setSettings(normaliseSettings(d))),
     ];
     return () => unsubs.forEach((u) => typeof u === 'function' && u());
   }, []);
+
+  // Customer subscriptions are an operations concern; only the console reads them.
+  useEffect(() => {
+    if (!isAdmin) {
+      setSubscriptions([]);
+      return undefined;
+    }
+    return watchCollection(COL.subscriptions, setSubscriptions);
+  }, [isAdmin]);
+
+  /* ---------------- availability ---------------- */
+  // Other customers' bookings are invisible here, so their busy windows are
+  // polled from the server — on load, every minute, and whenever the tab
+  // comes back into focus.
+  const refreshBusySlots = useCallback(async () => {
+    const slots = await loadBusySlots().catch(() => null);
+    if (slots) setRemoteSlots(slots);
+    return slots;
+  }, []);
+
+  useEffect(() => {
+    refreshBusySlots();
+    const id = setInterval(refreshBusySlots, 60000);
+    window.addEventListener('focus', refreshBusySlots);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('focus', refreshBusySlots);
+    };
+  }, [refreshBusySlots, user?.uid]);
+
+  const busySlots = useMemo(() => mergeSlots(remoteSlots, bookings), [remoteSlots, bookings]);
 
   /* ---------------- derived ---------------- */
   const myBookings = useMemo(
@@ -93,6 +137,8 @@ export function StoreProvider({ children }) {
 
   const saveSettings = useCallback((patch) => setItem(COL.settings, SETTINGS_DOC, patch), []);
 
+  const patchSubscription = useCallback((id, patch) => updateItem(COL.subscriptions, id, patch), []);
+
   const value = useMemo(
     () => ({
       ready,
@@ -107,6 +153,9 @@ export function StoreProvider({ children }) {
       kycDocs,
       myKyc,
       settings,
+      subscriptions,
+      busySlots,
+      refreshBusySlots,
       createBooking,
       patchBooking,
       saveCar,
@@ -118,6 +167,7 @@ export function StoreProvider({ children }) {
       saveKyc,
       patchKyc,
       saveSettings,
+      patchSubscription,
     }),
     [
       ready,
@@ -132,6 +182,9 @@ export function StoreProvider({ children }) {
       kycDocs,
       myKyc,
       settings,
+      subscriptions,
+      busySlots,
+      refreshBusySlots,
       createBooking,
       patchBooking,
       saveCar,
@@ -143,6 +196,7 @@ export function StoreProvider({ children }) {
       saveKyc,
       patchKyc,
       saveSettings,
+      patchSubscription,
     ]
   );
 

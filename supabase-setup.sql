@@ -202,8 +202,10 @@ create policy kyc_admin on public.kyc for all
 -- 5. Customers cannot approve their own KYC
 -- ---------------------------------------------------------------------
 -- A policy alone cannot compare the old row to the new one, so a trigger
--- does it: if a non-admin tries to change the verification status, the
--- old status is silently kept.
+-- does it. A customer's submission always lands as "Pending Review" — the
+-- first time, and again when they re-upload after a rejection — and they can
+-- never set Verified or Rejected themselves. Admins, the Telegram bot and the
+-- SQL editor are not restricted.
 
 create or replace function public.kyc_guard_status()
 returns trigger
@@ -212,14 +214,25 @@ security definer
 set search_path = public
 as $$
 begin
-  if not public.is_admin() then
-    if (new.data ->> 'status') is distinct from (old.data ->> 'status') then
-      new.data = jsonb_set(
-        new.data,
-        '{status}',
-        to_jsonb(coalesce(old.data ->> 'status', 'Pending Review'))
-      );
-    end if;
+  -- Admins, the Telegram bot (service role) and the SQL editor decide.
+  if public.is_admin()
+     or coalesce(auth.jwt() ->> 'role', 'postgres') not in ('anon', 'authenticated') then
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' then
+    -- A first submission always starts in the review queue.
+    new.data := jsonb_set(new.data, '{status}', '"Pending Review"');
+  elsif (new.data ->> 'status') is distinct from (old.data ->> 'status')
+        and (new.data ->> 'status') is distinct from 'Pending Review' then
+    -- Re-submitting puts the documents back in the queue; nothing else changes the status.
+    new.data := jsonb_set(new.data, '{status}', to_jsonb(coalesce(old.data ->> 'status', 'Pending Review')));
+  elsif old.data ->> 'status' = 'Verified'
+        and (new.data -> 'licence', new.data -> 'aadhaar', new.data ->> 'licenceNo', new.data ->> 'aadhaarNo')
+            is distinct from
+            (old.data -> 'licence', old.data -> 'aadhaar', old.data ->> 'licenceNo', old.data ->> 'aadhaarNo') then
+    -- New documents need checking again.
+    new.data := jsonb_set(new.data, '{status}', '"Pending Review"');
   end if;
   return new;
 end;
@@ -227,7 +240,7 @@ $$;
 
 drop trigger if exists kyc_guard_status_trg on public.kyc;
 create trigger kyc_guard_status_trg
-  before update on public.kyc
+  before insert or update on public.kyc
   for each row execute function public.kyc_guard_status();
 
 

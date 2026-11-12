@@ -1,13 +1,18 @@
 import { Link } from 'react-router-dom';
-import { Users, Fuel, Cog, Gauge, Star, ShieldCheck, Wrench, Zap } from 'lucide-react';
-import { inr, cx } from '../lib/format';
+import { Users, Fuel, Cog, Gauge, Star, ShieldCheck, Wrench, Zap, CalendarX2 } from 'lucide-react';
+import { inr, cx, fmtDateTime } from '../lib/format';
 import { Badge, Button } from './ui';
 import CarArt from './CarArt';
 
 const FUEL_ICON = { EV: Zap, Petrol: Fuel, Diesel: Fuel, CNG: Fuel };
 
-export default function CarCard({ car, onOpen }) {
-  const unavailable = car.available === false || car.status === 'maintenance';
+/**
+ * @param soldOut  the booking that takes this car over the searched dates, if any
+ * @param query    search string (dates, hub) carried through to checkout
+ */
+export default function CarCard({ car, onOpen, soldOut = null, query = '' }) {
+  const offFleet = car.available === false || car.status === 'maintenance';
+  const unavailable = offFleet || Boolean(soldOut);
   const FuelIcon = FUEL_ICON[car.fuel] || Fuel;
 
   const specs = [
@@ -43,12 +48,21 @@ export default function CarCard({ car, onOpen }) {
             </Badge>
           )}
         </div>
-        {unavailable && (
+        {offFleet ? (
           <div className="absolute inset-0 grid place-items-center bg-ink-950/70 backdrop-blur-[2px]">
             <Badge tone="warning" icon={Wrench}>
               {car.status === 'maintenance' ? 'In maintenance' : 'Unavailable'}
             </Badge>
           </div>
+        ) : (
+          soldOut && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-ink-950/70 backdrop-blur-[2px]">
+              <Badge tone="danger" icon={CalendarX2}>
+                Sold out for these dates
+              </Badge>
+              <span className="text-[11px] text-slate-300">Booked till {fmtDateTime(soldOut.end)}</span>
+            </div>
+          )
         )}
         <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-full border border-white/10 bg-ink-950/80 px-2.5 py-1 backdrop-blur">
           <Star size={11} className="fill-saffron-400 text-saffron-400" />
@@ -84,12 +98,12 @@ export default function CarCard({ car, onOpen }) {
           </Button>
           <Button
             as={unavailable ? 'button' : Link}
-            to={unavailable ? undefined : `/checkout/${car.id}`}
+            to={unavailable ? undefined : `/checkout/${car.id}${query}`}
             size="sm"
             className="flex-1"
             disabled={unavailable}
           >
-            Book now
+            {soldOut && !offFleet ? 'Sold out' : 'Book now'}
           </Button>
         </div>
       </div>

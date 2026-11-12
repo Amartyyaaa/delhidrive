@@ -15,8 +15,9 @@ import {
 } from 'lucide-react';
 import { Modal, Badge, Button, Row } from './ui';
 import CarArt from './CarArt';
-import { inr, cx } from '../lib/format';
-import { LOCATIONS } from '../lib/pricing';
+import { inr, cx, fmtDateTime } from '../lib/format';
+import { LOCATIONS, latePenaltyRate } from '../lib/pricing';
+import { useStore } from '../lib/store';
 
 function Stars({ value, size = 12 }) {
   return (
@@ -34,9 +35,11 @@ function Stars({ value, size = 12 }) {
   );
 }
 
-export default function CarModal({ car, open, onClose }) {
+export default function CarModal({ car, open, onClose, soldOut = null, query = '' }) {
+  const { settings } = useStore();
   if (!car) return null;
-  const unavailable = car.available === false || car.status === 'maintenance';
+  const offFleet = car.available === false || car.status === 'maintenance';
+  const unavailable = offFleet || Boolean(soldOut);
   const hub = LOCATIONS.find((l) => l.id === car.hub);
 
   const specs = [
@@ -69,15 +72,20 @@ export default function CarModal({ car, open, onClose }) {
             <p className="mt-1 text-[11.5px] text-slate-500">
               + {inr(car.deposit)} refundable deposit · 18% GST applies
             </p>
+            {soldOut && !offFleet && (
+              <p className="mt-1 text-[11.5px] font-medium text-rose-300">
+                Sold out for these dates — booked till {fmtDateTime(soldOut.end)}
+              </p>
+            )}
           </div>
           <Button
             as={unavailable ? 'button' : Link}
-            to={unavailable ? undefined : `/checkout/${car.id}`}
+            to={unavailable ? undefined : `/checkout/${car.id}${query}`}
             size="lg"
             disabled={unavailable}
             onClick={onClose}
           >
-            {unavailable ? 'Currently unavailable' : 'Reserve this car'}
+            {offFleet ? 'Currently unavailable' : soldOut ? 'Sold out for these dates' : 'Reserve this car'}
           </Button>
         </div>
       }
@@ -189,12 +197,16 @@ export default function CarModal({ car, open, onClose }) {
               <IndianRupee size={14} className="text-brand-300" />
               Indicative pricing
             </h4>
-            {car.rate6h > 0 && <Row k="Up to 6 hours" v={inr(car.rate6h)} />}
-            {car.rate12h > 0 && <Row k="Up to 12 hours" v={inr(car.rate12h)} />}
+            {car.rate12h > 0 && <Row k="12 hours (minimum)" v={inr(car.rate12h)} />}
             <Row k="24 hours (1 day)" v={inr(car.rate)} />
             <Row k="3 days" v={inr(car.rate * 3)} />
             <Row k="7 days" v={inr(car.rate * 7)} />
             <Row k="Refundable deposit" v={inr(car.deposit)} tone="text-slate-300" />
+            <Row
+              k={`Late return (${Number(car.seats) >= 7 ? '7-seater' : '5-seater'} rate)`}
+              v={`${inr(latePenaltyRate(car, settings))}/hour`}
+              tone="text-slate-300"
+            />
             {car.extraKmCharge > 0 && (
               <Row k="Extra km beyond limit" v={`₹${car.extraKmCharge}/km`} tone="text-slate-300" />
             )}

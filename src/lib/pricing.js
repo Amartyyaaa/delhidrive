@@ -7,7 +7,22 @@ export const LOGISTICS_FEE = 499;
 /** Rentals of this many days or longer get pickup and drop free. */
 export const FREE_LOGISTICS_FROM_DAYS = 3;
 
+/**
+ * Our own yard. The renter collects and returns the car themselves, so no
+ * driver moves and there is no fee.
+ */
+export const SELF_PICKUP_HUB = {
+  id: 'hub',
+  label: 'Self pickup from hub',
+  note: 'Kaushambi Metro Station, Ghaziabad',
+  fee: 0,
+  address: 'Kaushambi Metro Station (Blue Line), Kaushambi, Ghaziabad, Uttar Pradesh 201010',
+  mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Kaushambi+Metro+Station+Ghaziabad',
+  embedUrl: 'https://www.google.com/maps?q=Kaushambi+Metro+Station,+Ghaziabad&output=embed',
+};
+
 export const LOCATIONS = [
+  SELF_PICKUP_HUB,
   {
     id: 'airport',
     label: 'Delhi Airport — Terminal 3',
@@ -90,23 +105,79 @@ export const ADDONS = [
 ];
 
 export const PAYMENT_METHODS = [
-  { id: 'upi', label: 'UPI / QR', desc: 'GPay · PhonePe · Paytm', icon: 'QrCode' },
-  { id: 'card', label: 'Credit / Debit Card', desc: 'Visa · Mastercard · RuPay', icon: 'CreditCard' },
-  { id: 'netbanking', label: 'Netbanking', desc: '58 Indian banks supported', icon: 'Landmark' },
-  { id: 'cod', label: 'Cash on Delivery', desc: 'Pay the delivery executive', icon: 'Banknote' },
+  { id: 'online', label: 'Pay online', desc: 'UPI · cards · netbanking · wallets', icon: 'CreditCard' },
+  { id: 'cod', label: 'Pay at pickup', desc: 'Cash or UPI to our executive', icon: 'Banknote' },
 ];
+
+/** Payment states a booking moves through. */
+export const PAYMENT_STATUS = {
+  awaiting: 'Awaiting payment',
+  paid: 'Paid',
+  atPickup: 'Pay at pickup',
+};
+
+/** The 12-hour slab is the smallest unit we rent. Settings can raise this, never lower it. */
+export const MIN_RENTAL_HOURS = 12;
+
+/** Minutes a car may come back late before the penalty starts. */
+export const LATE_GRACE_MINUTES = 29;
 
 export const DEFAULT_SETTINGS = {
   gstRate: 18,
   securityDeposit: 5000,
-  latePenaltyPerHour: 350,
+  latePenalty5Seater: 350,
+  latePenalty7Seater: 500,
   weekendSurge: 1.15,
   festiveSurge: 1.25,
   festiveEnabled: false,
   cancellationWindowHours: 24,
-  minRentalHours: 4,
+  minRentalHours: MIN_RENTAL_HOURS,
   overspeedLimitKph: 100,
 };
+
+/** Shortest rental the checkout accepts, in hours. */
+export function minRentalHours(settings) {
+  return Math.max(MIN_RENTAL_HOURS, Number(settings?.minRentalHours) || 0);
+}
+
+/**
+ * Stored settings merged over the defaults, with older saved shapes carried
+ * forward so a value an admin already chose is never silently replaced.
+ */
+export function normaliseSettings(raw) {
+  const stored = raw || {};
+  const s = { ...DEFAULT_SETTINGS, ...stored };
+  // Before seat-based rates there was one hourly figure for every car.
+  if (stored.latePenalty5Seater == null && stored.latePenaltyPerHour != null) {
+    s.latePenalty5Seater = Number(stored.latePenaltyPerHour) || DEFAULT_SETTINGS.latePenalty5Seater;
+  }
+  s.minRentalHours = minRentalHours(s);
+  return s;
+}
+
+/** Hourly late-return rate for a car: 7-seaters have their own, higher rate. */
+export function latePenaltyRate(car, settings) {
+  const s = normaliseSettings(settings);
+  return Number(car?.seats) >= 7 ? Number(s.latePenalty7Seater) || 0 : Number(s.latePenalty5Seater) || 0;
+}
+
+/**
+ * Late-return penalty on a booking. The clock runs until the car is received
+ * (booking.returnedAt); until then it is measured against `at`. Charged in
+ * full-hour blocks once the grace period has passed. A penalty fixed when the
+ * car was received — possibly waived — always wins.
+ *
+ * @returns {{overdueMs, hours, rate, amount, waived, final}}
+ */
+export function latePenaltyFor(booking, { car, settings, at = Date.now() } = {}) {
+  if (booking?.latePenalty) return { ...booking.latePenalty, final: true };
+  const rate = Number(booking?.quote?.latePenaltyPerHour) || latePenaltyRate(car, settings);
+  const end = Number(booking?.returnedAt) || at;
+  const overdueMs = Math.max(0, end - (Number(booking?.returnMs) || end));
+  const late = overdueMs > LATE_GRACE_MINUTES * 60000;
+  const hours = late ? Math.ceil(overdueMs / 3600000) : 0;
+  return { overdueMs, hours, rate, amount: hours * rate, waived: false, final: false };
+}
 
 /** Number of chargeable days between two timestamps (part-days round up). */
 export function rentalDays(pickupMs, returnMs) {
@@ -115,22 +186,17 @@ export function rentalDays(pickupMs, returnMs) {
 }
 
 /**
- * Short rentals are billed on 6-hour and 12-hour slabs rather than a full day,
- * matching how the fleet is actually priced. Anything longer falls back to the
- * daily rate × number of days.
+ * Up to 12 hours bills the 12-hour slab — the smallest unit we rent. Anything
+ * longer falls back to the daily rate × number of days.
  *
  * @returns {{amount, label, tier, unitRate, units}}
  */
 export function baseCharge(car, pickupMs, returnMs) {
   const hours = rentalHours(pickupMs, returnMs);
   const daily = Number(car?.rate) || 0;
-  const r6 = Number(car?.rate6h) || 0;
   const r12 = Number(car?.rate12h) || 0;
 
-  if (r6 && hours > 0 && hours <= 6) {
-    return { amount: r6, label: '6-hour slab', tier: '6h', unitRate: r6, units: 1 };
-  }
-  if (r12 && hours > 6 && hours <= 12) {
+  if (r12 && hours <= 12) {
     return { amount: r12, label: '12-hour slab', tier: '12h', unitRate: r12, units: 1 };
   }
   const days = rentalDays(pickupMs, returnMs);
@@ -205,7 +271,7 @@ export function computeQuote({
   coupons = [],
   settings = DEFAULT_SETTINGS,
 }) {
-  const s = { ...DEFAULT_SETTINGS, ...settings };
+  const s = normaliseSettings(settings);
   const days = rentalDays(pickupMs, returnMs);
   const hours = rentalHours(pickupMs, returnMs);
   const rate = Number(car?.rate) || 0;
@@ -279,7 +345,7 @@ export function computeQuote({
     gst,
     deposit,
     payable,
-    latePenaltyPerHour: Number(s.latePenaltyPerHour) || 0,
+    latePenaltyPerHour: latePenaltyRate(car, s),
   };
 }
 

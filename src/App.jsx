@@ -109,6 +109,15 @@ function Footer() {
             </li>
             <li>support@delhidrive.in</li>
             <li>Cyber Hub, Gurugram 122002</li>
+            <li>
+              <a href={`${import.meta.env.BASE_URL}terms.html`} className="link-quiet">
+                Terms & conditions
+              </a>
+              {' · '}
+              <a href={`${import.meta.env.BASE_URL}privacy.html`} className="link-quiet">
+                Privacy policy
+              </a>
+            </li>
           </ul>
         </div>
       </div>

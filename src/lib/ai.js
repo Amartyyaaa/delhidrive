@@ -4,7 +4,7 @@
 // coupon table, the actual admin settings) so answers always reflect the
 // current configuration rather than hard-coded copy.
 
-import { ADDONS, LOCATIONS, DEFAULT_SETTINGS } from './pricing';
+import { ADDONS, LOCATIONS, SELF_PICKUP_HUB, LATE_GRACE_MINUTES, normaliseSettings } from './pricing';
 import { inr } from './format';
 
 const has = (q, ...words) => words.some((w) => q.includes(w));
@@ -135,7 +135,7 @@ export function answer(question, ctx) {
   const q = String(question || '').toLowerCase().trim();
   const fleet = ctx.fleet || [];
   const coupons = (ctx.coupons || []).filter((c) => c.active !== false);
-  const s = { ...DEFAULT_SETTINGS, ...(ctx.settings || {}) };
+  const s = normaliseSettings(ctx.settings);
   const cheapest = [...fleet].filter((c) => c.available !== false).sort((a, b) => a.rate - b.rate)[0];
   const dearest = [...fleet].sort((a, b) => b.rate - a.rate)[0];
 
@@ -204,7 +204,7 @@ export function answer(question, ctx) {
         LOCATIONS.map(
           (l) => `• ${l.label} — ${l.note}${l.fee ? ` (+${inr(l.fee)} fee)` : ' (no fee)'}`
         ).join('\n') +
-        `\n\nYou can return the car to a different hub from the one you picked up at; the destination hub's fee applies. Doorstep delivery covers anywhere inside NCR and arrives in a 30-minute window you choose.`,
+        `\n\nSelf pickup is free: collect the car yourself from our hub at ${SELF_PICKUP_HUB.address}. You can return the car to a different hub from the one you picked up at; the destination hub's fee applies. Doorstep delivery covers anywhere inside NCR and arrives in a 30-minute window you choose.`,
       chips: ['Airport T3 pickup point', 'Recommend a car for me'],
     };
   }
@@ -212,7 +212,7 @@ export function answer(question, ctx) {
   /* -- documents / KYC -- */
   if (has(q, 'document', 'kyc', 'licence', 'license', 'aadhaar', 'aadhar', 'id proof', 'verification')) {
     return {
-      text: `You need exactly two documents, both uploaded from the Dashboard > KYC tab:\n\n1. Driving licence — a valid Indian DL held for at least 12 months. Both sides, readable, not expired.\n2. Aadhaar card — front and back, as address proof.\n\nVerification is usually done within 20 minutes during operating hours. Your profile shows one of three flags: Pending Review while our team checks it, Verified once cleared, or Rejected with a reason if a scan is unreadable. A booking can be created any time, but handover only happens on a Verified profile — so upload early.\n\nForeign nationals: bring your passport plus an International Driving Permit and we will verify manually.`,
+      text: `You need exactly two documents, both uploaded from the Dashboard > KYC tab:\n\n1. Driving licence — a valid Indian DL held for at least 12 months. Both sides, readable, not expired.\n2. Aadhaar card — front and back, as address proof.\n\nVerification is usually done within 20 minutes during operating hours. Your profile shows one of three flags: Pending Review while our team checks it, Verified once cleared, or Rejected with a reason if a scan is unreadable. You cannot book until both documents are uploaded, and a booking stays under review until our team has verified them — so upload early.\n\nForeign nationals: bring your passport plus an International Driving Permit and we will verify manually.`,
       chips: ['Upload my documents', 'How long does verification take?'],
     };
   }
@@ -261,9 +261,9 @@ export function answer(question, ctx) {
     return {
       text: `The refundable security deposit is ${inr(
         s.securityDeposit
-      )} by default; premium and luxury cars carry a higher figure shown on the car's card. It is collected with the rental and is not taxed.\n\nRefunds go back to the source account within 7 working days of return. We deduct only what the post-return inspection records: fuel or charge shortfall, unreported damage, traffic challans (plus ₹250 admin per notice) and late-return penalties at ${inr(
-        s.latePenaltyPerHour
-      )}/hour.\n\nYou can watch the deduction breakdown live in My Bookings once the return inspection is filed.`,
+      )} by default; premium and luxury cars carry a higher figure shown on the car's card. It is collected with the rental and is not taxed.\n\nRefunds go back to the source account within 7 working days of return. We deduct only what the post-return inspection records: fuel or charge shortfall, unreported damage, traffic challans (plus ₹250 admin per notice) and late-return penalties (${inr(s.latePenalty5Seater)}/hour on 5-seaters, ${inr(
+        s.latePenalty7Seater
+      )}/hour on 7-seaters).\n\nYou can watch the deduction breakdown live in My Bookings once the return inspection is filed.`,
       chips: ['What happens if I return the car late?', 'Cancellation policy'],
     };
   }
@@ -279,9 +279,11 @@ export function answer(question, ctx) {
   /* -- late return / extension -- */
   if (has(q, 'late', 'extend', 'overdue', 'more time', 'return late', 'penalty')) {
     return {
-      text: `Late return is billed at ${inr(
-        s.latePenaltyPerHour
-      )} per hour, charged in full-hour blocks after a 29-minute grace period. Past 12 hours overdue without an approved extension the booking is treated as a breach and the car can be recovered.\n\nThe cheaper path is an extension: raise a "Extend ongoing trip" support ticket (Dashboard > Support) or call the helpline. If nobody has booked the car after you, we extend it at the normal daily rate — no penalty at all. Approvals usually come back within 15 minutes.`,
+      text: `Late return is billed per hour, by the size of the car: ${inr(
+        s.latePenalty5Seater
+      )}/hour on a 5-seater and ${inr(
+        s.latePenalty7Seater
+      )}/hour on a 7-seater. It is charged in full-hour blocks after a ${LATE_GRACE_MINUTES}-minute grace period, and the clock only stops when our team has received the car back. Past 12 hours overdue without an approved extension the booking is treated as a breach and the car can be recovered.\n\nThe cheaper path is an extension: raise a "Extend ongoing trip" support ticket (Dashboard > Support) or call the helpline. If nobody has booked the car after you, we extend it at the normal daily rate — no penalty at all. Approvals usually come back within 15 minutes.`,
       chips: ['Raise a support ticket', 'What is the security deposit?'],
     };
   }

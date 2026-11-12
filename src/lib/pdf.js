@@ -5,6 +5,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { LOCATIONS, locationLabel } from './pricing';
 import { fmtDateTime, fmtDate } from './format';
+import { AGREEMENT_TERMS } from './terms';
 
 const NAVY = [10, 10, 10]; // near-black
 const INDIGO = [18, 138, 75]; // DelhiDrive green
@@ -165,11 +166,16 @@ export function rentalAgreementPdf(booking, car, user) {
       ['Fuel type / seating', `${car?.fuel || '—'} · ${car?.seats || '—'} seats`],
       ['Pickup', `${fmtDateTime(booking.pickupMs)} — ${hubName(booking.locationId)}`],
       ['Return', `${fmtDateTime(booking.returnMs)} — ${hubName(booking.dropLocationId)}`],
-      ['Chargeable duration', `${q.days || 1} day(s)`],
+      ['Chargeable duration', q.charge?.label || `${q.days || 1} day(s)`],
       ['Daily tariff', rupee(q.rate)],
       ['Refundable security deposit', rupee(q.deposit)],
       ['Zero-depreciation cover', car?.zeroDep ? 'Included — nil depreciation on part claims' : 'Not opted'],
-      ['Late return penalty', `${rupee(q.latePenaltyPerHour)} per hour beyond scheduled return`],
+      [
+        'Late return penalty',
+        `${rupee(q.latePenaltyPerHour)} per hour beyond scheduled return (${
+          Number(car?.seats) >= 7 ? '7-seater' : '5-seater'
+        } rate), until the vehicle is received`,
+      ],
     ],
     styles: { fontSize: 8.4, cellPadding: 2.2, textColor: NAVY, lineColor: LIGHT },
     headStyles: { fillColor: INDIGO, textColor: 255, fontSize: 8.6 },
@@ -177,20 +183,7 @@ export function rentalAgreementPdf(booking, car, user) {
     margin: { left: 14, right: 14 },
   });
 
-  const terms = [
-    'The Lessee confirms possession of a valid Indian driving licence, held for a minimum of 12 months, and that the licence was produced for verification prior to handover.',
-    'The vehicle shall be driven only by the Lessee and any additional driver expressly recorded on this agreement and covered under the insurance policy.',
-    'Driving under the influence of alcohol or any intoxicating substance voids all insurance cover and makes the Lessee liable for the full assessed value of loss.',
-    'The vehicle shall not be used for racing, motor sport, driving instruction, subletting, transport of contraband, or for carrying passengers or goods for hire or reward.',
-    'Traffic challans, toll charges and parking penalties incurred during the rental period are recoverable from the Lessee, including a Rs. 250 administrative fee per notice.',
-    'Fuel or state of charge is to be returned at the level recorded on the digital handover checklist. Any shortfall is billed at prevailing retail rates plus a Rs. 300 service charge.',
-    'Interstate travel is permitted within India subject to applicable state permits. The Lessee bears all interstate entry taxes and green-tax levies.',
-    'The security deposit is refunded to the source account within seven working days of return, net of any damage, fuel shortfall, penalty or challan liability recorded at inspection.',
-    'Damage not covered by the insurance policy, including tyres, rims, glass, undercarriage, interiors and the vehicle keys, is chargeable at actuals unless a specific add-on cover was purchased.',
-    'In the event of a breakdown, the Lessee shall immediately notify the DelhiDrive 24x7 helpline and shall not authorise third-party repairs without written approval.',
-    'The Lessor may repossess the vehicle without notice if it is used in breach of these terms or if the rental period is exceeded by more than twelve hours without an approved extension.',
-    'This agreement is governed by the laws of India. Courts at New Delhi shall have exclusive jurisdiction over any dispute arising hereunder.',
-  ];
+  const terms = AGREEMENT_TERMS;
 
   autoTable(doc, {
     startY: doc.lastAutoTable.finalY + 6,
@@ -405,7 +398,10 @@ export function handoverReportPdf(booking, car, phase) {
       ['Phase', phase === 'pickup' ? 'Pre-pickup' : 'Post-return'],
       ['Recorded at', insp?.at ? fmtDateTime(insp.at) : '—'],
       ['Inspected by', insp?.by || booking.customerName || '—'],
-      ['Photos attached', String(insp?.photos?.length || 0)],
+      [
+        'Photos attached',
+        String(Object.values(insp?.sides || {}).filter(Boolean).length + (insp?.photos?.length || 0)),
+      ],
     ]
   );
 

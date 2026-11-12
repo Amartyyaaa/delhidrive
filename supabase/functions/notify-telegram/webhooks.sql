@@ -12,7 +12,7 @@
 create extension if not exists pg_net with schema extensions;
 
 -- ---------------------------------------------------------------------
--- One shared trigger function for all three tables
+-- New rows: one shared trigger function for all three tables
 -- ---------------------------------------------------------------------
 create or replace function public.notify_telegram_on_insert()
 returns trigger
@@ -81,6 +81,97 @@ drop trigger if exists trg_telegram_subscriptions on public.subscriptions;
 create trigger trg_telegram_subscriptions
   after insert on public.subscriptions
   for each row execute function public.notify_telegram_on_insert();
+
+-- ---------------------------------------------------------------------
+-- Booking changes and KYC re-submissions
+-- ---------------------------------------------------------------------
+-- Fires only when something worth an alert changed: a booking's status,
+-- payment, car or dates, or a KYC going back to review after a rejection.
+-- Photos and documents are left out of the payload; no alert needs them.
+create or replace function public.notify_telegram_on_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if TG_TABLE_NAME = 'bookings' and not (
+       (NEW.data ->> 'status')        is distinct from (OLD.data ->> 'status')
+    or (NEW.data ->> 'paymentStatus') is distinct from (OLD.data ->> 'paymentStatus')
+    or (NEW.data ->> 'carId')         is distinct from (OLD.data ->> 'carId')
+    or (NEW.data ->> 'pickupMs')      is distinct from (OLD.data ->> 'pickupMs')
+    or (NEW.data ->> 'returnMs')      is distinct from (OLD.data ->> 'returnMs')
+  ) then
+    return NEW;
+  end if;
+
+  if TG_TABLE_NAME = 'kyc' and not (
+       NEW.data ->> 'status' = 'Pending Review'
+       and (OLD.data ->> 'status') is distinct from 'Pending Review'
+  ) then
+    return NEW;
+  end if;
+
+  perform net.http_post(
+    url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-telegram',
+    headers := jsonb_build_object(
+                 'Content-Type',  'application/json',
+                 'Authorization', 'Bearer <ANON_KEY>'
+               ),
+    body    := jsonb_build_object(
+                 'type',       'UPDATE',
+                 'table',      TG_TABLE_NAME,
+                 'record',     to_jsonb(NEW) #- '{data,inspections}' #- '{data,verification}'
+                                             #- '{data,licence}' #- '{data,aadhaar}',
+                 'old_record', to_jsonb(OLD) #- '{data,inspections}' #- '{data,verification}'
+                                             #- '{data,licence}' #- '{data,aadhaar}'
+               )
+  );
+  -- Never let a messaging problem roll back the change itself.
+  return NEW;
+exception when others then
+  raise warning 'notify_telegram_on_update failed: %', sqlerrm;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_telegram_bookings_update on public.bookings;
+create trigger trg_telegram_bookings_update
+  after update on public.bookings
+  for each row execute function public.notify_telegram_on_update();
+
+drop trigger if exists trg_telegram_kyc_update on public.kyc;
+create trigger trg_telegram_kyc_update
+  after update on public.kyc
+  for each row execute function public.notify_telegram_on_update();
+
+-- ---------------------------------------------------------------------
+-- Overdue cars — checked every 15 minutes
+-- ---------------------------------------------------------------------
+-- Alerts once for each car past its return time that nobody has marked
+-- received. Needs the pg_cron extension: if the next line errors, switch it
+-- on under Database → Extensions (search "pg_cron") and run this file again.
+create extension if not exists pg_cron;
+
+do $$
+begin
+  perform cron.unschedule('delhidrive-overdue-cars');
+exception when others then
+  null;  -- not scheduled yet
+end $$;
+
+select cron.schedule(
+  'delhidrive-overdue-cars',
+  '*/15 * * * *',
+  $job$
+  select net.http_post(
+    url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-telegram',
+    headers := jsonb_build_object('Content-Type',  'application/json',
+                                  'Authorization', 'Bearer <ANON_KEY>'),
+    body    := '{"overdue": true}'::jsonb
+  );
+  $job$
+);
 
 -- ---------------------------------------------------------------------
 -- Check it worked: this should send a real alert to your Telegram.

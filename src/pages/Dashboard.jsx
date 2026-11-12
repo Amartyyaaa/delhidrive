@@ -17,13 +17,17 @@ import {
   Timer,
   ChevronDown,
   MessageCircle,
+  CreditCard,
+  Clock3,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useStore } from '../lib/store';
 import { useNotify } from '../lib/notify';
-import { LOCATIONS, locationLabel, refundFor } from '../lib/pricing';
+import { locationLabel, refundFor, latePenaltyFor, PAYMENT_STATUS } from '../lib/pricing';
+import { bookingPhase, PHASE_META, isPaid } from '../lib/rental';
+import { paymentsReady, payForBooking } from '../lib/payments';
 import { rentalAgreementPdf, gstInvoicePdf } from '../lib/pdf';
-import { inr, fmtDateTime, countdownParts, cx } from '../lib/format';
+import { inr, fmtDateTime, fmtDuration, countdownParts, cx } from '../lib/format';
 import { Button, Badge, Tabs, Empty, Stat, Modal, Row, Spinner } from '../components/ui';
 import CarArt from '../components/CarArt';
 import Telematics from '../components/Telematics';
@@ -33,14 +37,6 @@ import TicketsPanel from '../components/TicketsPanel';
 import { bookingWhatsappUrl } from '../lib/whatsapp';
 
 const hubName = locationLabel;
-
-function bookingPhase(b) {
-  if (b.status === 'Cancelled') return 'cancelled';
-  const now = Date.now();
-  if (now < b.pickupMs) return 'upcoming';
-  if (now <= b.returnMs) return 'active';
-  return 'completed';
-}
 
 function Countdown({ to, label }) {
   const [, force] = useState(0);
@@ -74,22 +70,55 @@ function Countdown({ to, label }) {
   );
 }
 
+/** What a cancellation gives back — nothing, if nothing was ever paid. */
+function refundOnCancel(booking, settings) {
+  if (isPaid(booking)) return refundFor(booking, settings);
+  return {
+    tier: 'none',
+    label: 'No payment was taken, so there is nothing to refund',
+    rentRefund: 0,
+    depositRefund: 0,
+    fee: 0,
+    total: 0,
+  };
+}
+
 function BookingCard({ booking, car, settings, onPatch, highlight }) {
   const { toast, push } = useNotify();
   const [tab, setTab] = useState('overview');
   const [expanded, setExpanded] = useState(highlight || false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const phase = bookingPhase(booking);
+  const [paying, setPaying] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  const phase = bookingPhase(booking, now);
+  const meta = PHASE_META[phase];
 
-  const PHASE_META = {
-    upcoming: { tone: 'info', label: 'Upcoming' },
-    active: { tone: 'success', label: 'Active now' },
-    completed: { tone: 'neutral', label: 'Completed' },
-    cancelled: { tone: 'danger', label: 'Cancelled' },
-  }[phase];
+  // An overdue rental's late charge keeps growing until the car is received.
+  useEffect(() => {
+    if (phase !== 'overdue' && phase !== 'active') return undefined;
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, [phase]);
 
-  const refund = useMemo(() => refundFor(booking, settings), [booking, settings]);
+  const refund = useMemo(() => refundOnCancel(booking, settings), [booking, settings]);
+  const penalty = latePenaltyFor(booking, { car, settings, at: now });
+  const awaitingPayment =
+    booking.paymentStatus === PAYMENT_STATUS.awaiting && ['review', 'upcoming'].includes(phase);
+
+  const payNow = async () => {
+    setPaying(true);
+    try {
+      await payForBooking(booking);
+      push('Payment received · ' + booking.ref, `${inr(booking.quote?.payable)} paid. Thank you!`, {
+        type: 'success',
+      });
+    } catch (err) {
+      if (!err.cancelled) toast(err.message || 'Payment could not be completed.', { type: 'error' });
+    } finally {
+      setPaying(false);
+    }
+  };
 
   const doCancel = async () => {
     setCancelling(true);
@@ -97,11 +126,15 @@ function BookingCard({ booking, car, settings, onPatch, highlight }) {
       await onPatch({
         status: 'Cancelled',
         cancelledAt: Date.now(),
-        refund: { ...refund, initiatedAt: Date.now(), expectedBy: Date.now() + 7 * 86400000 },
+        ...(refund.total > 0
+          ? { refund: { ...refund, initiatedAt: Date.now(), expectedBy: Date.now() + 7 * 86400000 } }
+          : {}),
       });
       push(
         'Booking cancelled · ' + booking.ref,
-        `${inr(refund.total)} will be refunded to your source account within 7 working days.`,
+        refund.total > 0
+          ? `${inr(refund.total)} will be refunded to your source account within 7 working days.`
+          : 'Your booking is cancelled.',
         { type: 'success' }
       );
       setCancelOpen(false);
@@ -114,7 +147,7 @@ function BookingCard({ booking, car, settings, onPatch, highlight }) {
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: CalendarClock },
-    ...(phase === 'active' ? [{ id: 'live', label: 'Live tracking', icon: Satellite }] : []),
+    ...(phase === 'active' || phase === 'overdue' ? [{ id: 'live', label: 'Live tracking', icon: Satellite }] : []),
     { id: 'handover', label: 'Inspections', icon: ClipboardCheck },
     { id: 'documents', label: 'Documents', icon: FileText },
   ];
@@ -124,7 +157,8 @@ function BookingCard({ booking, car, settings, onPatch, highlight }) {
       className={cx(
         'panel overflow-hidden transition',
         highlight && 'border-brand-400/50 shadow-glow',
-        phase === 'active' && 'border-emerald-400/25'
+        phase === 'active' && 'border-emerald-400/25',
+        phase === 'overdue' && 'border-rose-400/35'
       )}
     >
       <button
@@ -137,8 +171,9 @@ function BookingCard({ booking, car, settings, onPatch, highlight }) {
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={PHASE_META.tone}>{PHASE_META.label}</Badge>
+            <Badge tone={meta.tone}>{meta.label}</Badge>
             <span className="font-mono text-[11px] text-slate-500">{booking.ref}</span>
+            {awaitingPayment && <Badge tone="warning">Payment due</Badge>}
             {phase === 'active' && (
               <span className="flex items-center gap-1 text-[11px] text-emerald-400">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> GPS live
@@ -161,7 +196,10 @@ function BookingCard({ booking, car, settings, onPatch, highlight }) {
             {inr(booking.quote?.payable)}
           </p>
           <p className="text-[10.5px] text-slate-500">
-            {booking.quote?.days} day{booking.quote?.days > 1 ? 's' : ''} · {booking.paymentStatus}
+            {booking.quote?.charge?.tier && booking.quote.charge.tier !== 'daily'
+              ? booking.quote.charge.label
+              : `${booking.quote?.days} day${booking.quote?.days > 1 ? 's' : ''}`}{' '}
+            · {booking.paymentStatus}
           </p>
         </div>
 
@@ -173,6 +211,43 @@ function BookingCard({ booking, car, settings, onPatch, highlight }) {
 
       {expanded && (
         <div className="border-t border-white/[0.07] bg-ink-950/40">
+          {phase === 'review' && (
+            <p className="flex items-start gap-2 border-b border-white/[0.07] bg-amber-500/[0.07] px-4 py-3 text-[12.5px] text-amber-100">
+              <Clock3 size={14} className="mt-0.5 shrink-0 text-amber-300" />
+              Our team is checking your documents. You will be notified as soon as the booking is confirmed.
+            </p>
+          )}
+          {phase === 'overdue' && (
+            <div className="border-b border-white/[0.07] bg-rose-500/[0.08] px-4 py-3.5">
+              <p className="flex items-center gap-2 text-[13.5px] font-semibold text-rose-200">
+                <Timer size={14} /> Return overdue by {fmtDuration(penalty.overdueMs)}
+              </p>
+              <p className="mt-1 text-[12.5px] leading-relaxed text-rose-100/80">
+                Late charge so far {inr(penalty.amount)} at {inr(penalty.rate)}/hour. It keeps running until our
+                team receives the car — bring it back as soon as you can, or call us to extend.
+              </p>
+            </div>
+          )}
+          {phase === 'rejected' && (
+            <div className="border-b border-white/[0.07] bg-rose-500/[0.08] px-4 py-3.5">
+              <p className="text-[13.5px] font-semibold text-rose-200">We could not accept this booking</p>
+              <p className="mt-1 text-[12.5px] text-rose-100/80">
+                {booking.rejectionReason || 'Please contact us for details.'}
+                {isPaid(booking) && ` Your payment of ${inr(booking.quote?.payable)} is being refunded within 7 working days.`}
+              </p>
+            </div>
+          )}
+          {awaitingPayment && paymentsReady && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-4 py-3.5">
+              <p className="text-[12.5px] text-slate-300">
+                Payment of {inr(booking.quote?.payable)} is still due. Unpaid online bookings release the car
+                after 30 minutes.
+              </p>
+              <Button size="sm" icon={CreditCard} loading={paying} disabled={paying} onClick={payNow}>
+                Pay {inr(booking.quote?.payable)}
+              </Button>
+            </div>
+          )}
           {(phase === 'upcoming' || phase === 'active') && (
             <div className="border-b border-white/[0.07] px-4 py-3.5">
               <Countdown
@@ -229,6 +304,13 @@ function BookingCard({ booking, car, settings, onPatch, highlight }) {
                   )}
                   <Row k={`GST @ ${booking.quote?.gstRate}%`} v={inr(booking.quote?.gst)} />
                   <Row k="Refundable deposit" v={inr(booking.quote?.deposit)} tone="text-slate-300" />
+                  {booking.latePenalty?.assessed > 0 && (
+                    <Row
+                      k={`Late return · ${booking.latePenalty.hours} h`}
+                      v={booking.latePenalty.waived ? 'Waived' : inr(booking.latePenalty.amount)}
+                      tone={booking.latePenalty.waived ? 'text-emerald-400' : 'text-rose-300'}
+                    />
+                  )}
                   <div className="mt-2 flex items-baseline justify-between border-t border-white/10 pt-2">
                     <span className="text-[13px] font-semibold text-white">Total</span>
                     <span className="font-display text-[16px] font-bold text-white tabular-nums">
@@ -261,7 +343,7 @@ function BookingCard({ booking, car, settings, onPatch, highlight }) {
                   </div>
                 )}
 
-                {phase !== 'cancelled' && phase !== 'completed' && (
+                {['review', 'upcoming', 'active'].includes(phase) && (
                   <div className="lg:col-span-2 flex flex-wrap gap-2 border-t border-white/[0.07] pt-4">
                     <Button variant="danger" size="sm" icon={XCircle} onClick={() => setCancelOpen(true)}>
                       Cancel booking
@@ -377,26 +459,29 @@ function BookingCard({ booking, car, settings, onPatch, highlight }) {
         <div
           className={cx(
             'rounded-xl border px-4 py-3',
-            refund.tier === 'full'
+            refund.tier === 'full' || refund.tier === 'none'
               ? 'border-emerald-400/25 bg-emerald-500/[0.08]'
               : 'border-amber-400/25 bg-amber-500/[0.08]'
           )}
         >
           <p className="text-[13px] font-semibold text-white">{refund.label}</p>
         </div>
-        <div className="mt-3">
-          <Row k="Rent paid" v={inr((booking.quote?.taxable || 0) + (booking.quote?.gst || 0))} />
-          {refund.fee > 0 && <Row k="Cancellation fee" v={`− ${inr(refund.fee)}`} tone="text-rose-300" />}
-          <Row k="Deposit refunded" v={inr(refund.depositRefund)} />
-          <div className="mt-2 flex items-baseline justify-between border-t border-white/10 pt-2">
-            <span className="text-[13px] font-semibold text-white">You get back</span>
-            <span className="font-display text-[17px] font-bold text-emerald-400 tabular-nums">
-              {inr(refund.total)}
-            </span>
+        {refund.tier !== 'none' && (
+          <div className="mt-3">
+            <Row k="Rent paid" v={inr((booking.quote?.taxable || 0) + (booking.quote?.gst || 0))} />
+            {refund.fee > 0 && <Row k="Cancellation fee" v={`− ${inr(refund.fee)}`} tone="text-rose-300" />}
+            <Row k="Deposit refunded" v={inr(refund.depositRefund)} />
+            <div className="mt-2 flex items-baseline justify-between border-t border-white/10 pt-2">
+              <span className="text-[13px] font-semibold text-white">You get back</span>
+              <span className="font-display text-[17px] font-bold text-emerald-400 tabular-nums">
+                {inr(refund.total)}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
         <p className="mt-3 text-[11.5px] leading-relaxed text-slate-500">
-          Refunds are credited to the original payment method within 7 working days. This cannot be undone.
+          {refund.tier !== 'none' && 'Refunds are credited to the original payment method within 7 working days. '}
+          This cannot be undone.
         </p>
       </Modal>
     </div>
@@ -417,32 +502,39 @@ export default function Dashboard() {
       [...myBookings]
         .map((b) => ({ ...b, phase: bookingPhase(b), car: fleet.find((c) => c.id === b.carId) }))
         .sort((a, b) => {
-          const order = { active: 0, upcoming: 1, completed: 2, cancelled: 3 };
+          const order = { overdue: 0, active: 1, review: 2, upcoming: 3, completed: 4, rejected: 5, cancelled: 6 };
           return order[a.phase] - order[b.phase] || b.pickupMs - a.pickupMs;
         }),
     [myBookings, fleet]
   );
 
+  // Each filter chip covers the phases a customer thinks of together.
+  const GROUPS = {
+    active: ['active', 'overdue'],
+    upcoming: ['upcoming', 'review'],
+    completed: ['completed'],
+    cancelled: ['cancelled', 'rejected'],
+  };
+
   const counts = useMemo(
     () => ({
       all: enriched.length,
-      active: enriched.filter((b) => b.phase === 'active').length,
-      upcoming: enriched.filter((b) => b.phase === 'upcoming').length,
-      completed: enriched.filter((b) => b.phase === 'completed').length,
-      cancelled: enriched.filter((b) => b.phase === 'cancelled').length,
+      ...Object.fromEntries(
+        Object.entries(GROUPS).map(([id, phases]) => [id, enriched.filter((b) => phases.includes(b.phase)).length])
+      ),
     }),
-    [enriched]
+    [enriched] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const spend = useMemo(
     () =>
       enriched
-        .filter((b) => b.status !== 'Cancelled')
+        .filter((b) => b.status !== 'Cancelled' && b.status !== 'Rejected')
         .reduce((sum, b) => sum + ((b.quote?.taxable || 0) + (b.quote?.gst || 0)), 0),
     [enriched]
   );
 
-  const visible = filter === 'all' ? enriched : enriched.filter((b) => b.phase === filter);
+  const visible = filter === 'all' ? enriched : enriched.filter((b) => GROUPS[filter].includes(b.phase));
 
   if (!ready) return <Spinner label="Loading your bookings" />;
 
@@ -458,7 +550,7 @@ export default function Dashboard() {
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Active rentals" value={counts.active} sub="GPS streaming" icon={Satellite} tone="success" />
-        <Stat label="Upcoming" value={counts.upcoming} sub="Reserved and paid" icon={CalendarClock} tone="info" />
+        <Stat label="Upcoming" value={counts.upcoming} sub="Reserved or under review" icon={CalendarClock} tone="info" />
         <Stat label="Trips completed" value={counts.completed} sub="All time" icon={History} />
         <Stat label="Total spend" value={inr(spend)} sub="Excluding deposits" icon={Wallet} tone="warning" />
       </div>

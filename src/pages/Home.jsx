@@ -15,9 +15,9 @@ import {
   Search,
 } from 'lucide-react';
 import { useStore } from '../lib/store';
-import { LOCATIONS } from '../lib/pricing';
+import { LOCATIONS, SELF_PICKUP_HUB } from '../lib/pricing';
 import { CATEGORIES } from '../data/fleet';
-import { inr, cx } from '../lib/format';
+import { inr, cx, toLocalInput } from '../lib/format';
 import { Button, Badge } from '../components/ui';
 import CarCard from '../components/CarCard';
 import CarModal from '../components/CarModal';
@@ -30,8 +30,8 @@ const PROMISES = [
   },
   {
     icon: MapPin,
-    title: '3 handover points',
-    body: 'Delhi Airport T3, New Delhi Railway Station — or delivered to your door.',
+    title: `${LOCATIONS.length} handover points`,
+    body: 'Free self pickup at Kaushambi Metro, Delhi Airport T3, New Delhi Railway Station — or delivered to your door.',
   },
   {
     icon: Gauge,
@@ -48,7 +48,7 @@ const PROMISES = [
 const STEPS = [
   { icon: Search, title: 'Choose your car', body: 'Filter by category, fuel, transmission, seats and budget.' },
   { icon: KeyRound, title: 'Verify once', body: 'Upload licence and Aadhaar. Verification clears in ~20 minutes.' },
-  { icon: CarFront, title: 'Collect or get it delivered', body: 'Pick a hub, or have it dropped anywhere in NCR.' },
+  { icon: CarFront, title: 'Collect or get it delivered', body: 'Self pickup from our Kaushambi hub, or have it dropped anywhere in NCR.' },
   { icon: BadgeIndianRupee, title: 'Return and get refunded', body: 'Deposit back in 7 working days, itemised.' },
 ];
 
@@ -56,7 +56,19 @@ export default function Home() {
   const { fleet } = useStore();
   const navigate = useNavigate();
   const [active, setActive] = useState(null);
-  const [quick, setQuick] = useState({ category: '', hub: 'airport', seats: '' });
+  const [quick, setQuick] = useState(() => {
+    // Tomorrow 10am for a day, as a starting point the customer can change.
+    const start = new Date();
+    start.setDate(start.getDate() + 1);
+    start.setHours(10, 0, 0, 0);
+    return {
+      category: '',
+      hub: SELF_PICKUP_HUB.id,
+      seats: '',
+      pickup: toLocalInput(start),
+      return: toLocalInput(start.getTime() + 86400000),
+    };
+  });
 
   const featured = useMemo(
     () =>
@@ -87,6 +99,11 @@ export default function Home() {
     const p = new URLSearchParams();
     if (quick.category) p.set('category', quick.category);
     if (quick.seats) p.set('seats', quick.seats);
+    if (quick.pickup && quick.return) {
+      p.set('pickup', quick.pickup);
+      p.set('return', quick.return);
+    }
+    if (quick.hub) p.set('hub', quick.hub);
     navigate(`/fleet?${p.toString()}`);
   };
 
@@ -116,7 +133,9 @@ export default function Home() {
 
               <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-slate-400">
                 Self-drive rentals with zero-depreciation insurance, transparent GST billing and no
-                per-kilometre charges. Collect at the airport or railway station, or have the car delivered to your gate. Free pickup and drop on rentals of 3 days or more.
+                per-kilometre charges. Collect it yourself, free, from our hub at Kaushambi Metro Station, pick it
+                up at the airport or railway station, or have it delivered to your gate. Pickup and drop are
+                free on rentals of 3 days or more.
               </p>
 
               <div className="mt-7 flex flex-wrap gap-3">
@@ -150,6 +169,28 @@ export default function Home() {
               </p>
 
               <form onSubmit={submitQuick} className="mt-5 space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <label>
+                    <span className="label">Pickup</span>
+                    <input
+                      type="datetime-local"
+                      value={quick.pickup}
+                      onChange={(e) => setQuick((s) => ({ ...s, pickup: e.target.value }))}
+                      className="field"
+                    />
+                  </label>
+                  <label>
+                    <span className="label">Return</span>
+                    <input
+                      type="datetime-local"
+                      value={quick.return}
+                      min={quick.pickup || undefined}
+                      onChange={(e) => setQuick((s) => ({ ...s, return: e.target.value }))}
+                      className="field"
+                    />
+                  </label>
+                </div>
+
                 <div>
                   <p className="label">Vehicle type</p>
                   <div className="grid grid-cols-2 gap-2">
@@ -322,17 +363,27 @@ export default function Home() {
           <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-brand-300">Hubs</p>
           <h2 className="text-2xl">Collect from anywhere in NCR</h2>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {LOCATIONS.map((l) => (
             <div key={l.id} className="panel p-4">
               <MapPin size={16} className="text-brand-300" />
               <h3 className="mt-2.5 text-[13.5px] leading-tight">{l.label}</h3>
               <p className="mt-1 text-[11.5px] leading-snug text-slate-500">{l.note}</p>
-              <div className="mt-3">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 {l.fee ? (
                   <Badge tone="warning">+{inr(l.fee)} fee</Badge>
                 ) : (
                   <Badge tone="success">No fee</Badge>
+                )}
+                {l.mapsUrl && (
+                  <a
+                    href={l.mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11.5px] font-medium text-brand-300 hover:text-brand-200"
+                  >
+                    Open in Maps →
+                  </a>
                 )}
               </div>
             </div>

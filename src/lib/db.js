@@ -24,10 +24,13 @@ export const COL = {
   kyc: 'kyc',
   users: 'users',
   settings: 'settings',
+  // Created by supabase/functions/notify-telegram/webhooks.sql — the app
+  // writes customer subscriptions here.
+  subscriptions: 'subscriptions',
 };
 
 /** Tables whose rows belong to a specific signed-in user. */
-const OWNED = new Set([COL.bookings, COL.tickets, COL.kyc, COL.users]);
+const OWNED = new Set([COL.bookings, COL.tickets, COL.kyc, COL.users, COL.subscriptions]);
 
 /* ------------------------------------------------------------------ */
 /* Row <-> document mapping                                            */
@@ -191,7 +194,8 @@ export async function addItem(name, data) {
 export async function setItem(name, id, data) {
   if (!supabaseReady) {
     if (name === COL.settings || String(id).includes('/')) {
-      lsWrite(`${name}/${id}`, { id, ...data });
+      // Merge, as the Supabase path does, so a partial save keeps the rest.
+      lsWrite(`${name}/${id}`, { ...(lsRead(`${name}/${id}`) || {}), id, ...data });
       return id;
     }
     const list = lsRead(name) || [];
@@ -285,6 +289,40 @@ export async function seedIfEmpty(name, items) {
     items.map((it) => ({ ...it, id: it.id || newId(), createdAt: Date.now() }))
   );
   return true;
+}
+
+/* ------------------------------------------------------------------ */
+/* Availability                                                        */
+/* ------------------------------------------------------------------ */
+
+let busySlotsWarned = false;
+
+/**
+ * Busy windows for every car — car id and times only, nobody's details — from
+ * the `car_busy_slots` function in supabase-booking-rules.sql. Returns null
+ * without Supabase, or before that script has been run, so the caller falls
+ * back to the bookings it can read itself.
+ */
+export async function loadBusySlots() {
+  if (!supabaseReady) return null;
+  const { data, error } = await supabase.rpc('car_busy_slots');
+  if (error) {
+    if (!busySlotsWarned) {
+      busySlotsWarned = true;
+      console.warn(
+        '[DelhiDrive] car_busy_slots is not available, so other customers’ bookings cannot be seen. ' +
+          'Run supabase-booking-rules.sql in the Supabase SQL Editor.',
+        error.message
+      );
+    }
+    return null;
+  }
+  return (data || []).map((r) => ({
+    bookingId: r.booking_id,
+    carId: r.car_id,
+    start: Number(r.pickup_ms),
+    end: Number(r.return_ms),
+  }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -386,8 +424,7 @@ function friendly(error, table) {
   if (error?.code === '42P01')
     return `The "${table}" table does not exist yet. Run supabase-setup.sql in the Supabase SQL Editor.`;
   if (error?.code === '42501' || /row-level security/i.test(msg))
-    return `You do not have permission to change "${table}". Sign in with an admin account, or check the policies from supabase-setup.sql.`;
-  if (/JWT|not authenticated/i.test(msg)) return 'Your session expired — please sign in again.';
+    return `You do not have permission to change "${table}". Sign in with an admin account, or check the policies from supabase-setup.sql.`;  if (/JWT|not authenticated/i.test(msg)) return 'Your session expired — please sign in again.';
   return msg;
 }
 

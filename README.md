@@ -71,7 +71,22 @@ both storage buckets, and inserts the 14 seed cars and 3 promo codes.
 
 It is safe to run again later if you change the admin email.
 
-### 4. Turn off email confirmation (optional but easier)
+### 4. Run the booking rules
+Then run `supabase-booking-rules.sql` the same way. It adds the rules that have
+to hold for the website **and** the app, because both write to these tables:
+
+- cars already booked on the chosen dates show as **sold out**, and a car cannot
+  be booked twice for overlapping times;
+- a booking from someone whose KYC is not verified waits **under review**
+  instead of being confirmed;
+- only the payment function can mark a payment verified, and a customer cannot
+  change the fare after booking;
+- the **12-hour minimum** rental and the **5-seater / 7-seater** late-return
+  rates.
+
+Safe to run again.
+
+### 5. Turn off email confirmation (optional but easier)
 **Authentication** → **Sign In / Providers** → **Email** → switch off
 **Confirm email**. Otherwise every new signup has to click a link in their
 inbox before they can log in.
@@ -79,11 +94,17 @@ inbox before they can log in.
 To enable Google sign-in, turn on the **Google** provider on the same screen
 and follow its instructions.
 
-### 5. Restart and check
+### 6. Restart and check
 Restart the dev server. The badge in the header should read **Supabase live**
 instead of *Local store*, and **Table Editor → fleet** should show 14 rows.
 
 Sign up with your admin email, and the **Admin** link appears in the nav.
+
+### Optional: Telegram alerts and online payments
+- **Telegram** — booking, KYC and payment alerts, accept/reject buttons, and an
+  alert when a car is overdue: `supabase/functions/notify-telegram/README.md`.
+- **Razorpay** — online payment at checkout: `supabase/functions/razorpay/README.md`.
+  Without it, checkout offers pay-at-pickup only.
 
 ---
 
@@ -98,29 +119,42 @@ engine displacement, boot capacity, zero-dep insurance terms, customer reviews
 and an instant checkout CTA.
 
 ### 2. Smart checkout & reservation engine
-Date/time range picker with live duration in hours and days, five location hubs
-(Airport T3, Connaught Place, Cyber City, Noida 18, doorstep delivery) with
-independent pickup and drop-off, five add-ons priced per booking or per day,
-promo-code validation, and a fare breakdown showing surge, discount, 18% GST and
-the refundable deposit. UPI QR, card, netbanking and cash on delivery.
+Date/time range picker with live duration; the minimum rental is 12 hours, billed
+at the 12-hour slab, and longer trips per day. Cars already booked on the chosen
+dates show as sold out — on the fleet page and at checkout, with the next free
+slot offered. Free self pickup from the Kaushambi Metro Station hub (with a map),
+or Airport T3, New Delhi Railway Station and home delivery, with independent
+pickup and drop-off. Five add-ons priced per booking or per day, promo-code
+validation, and a fare breakdown showing surge, discount, 18% GST and the
+refundable deposit. KYC documents must be submitted before booking; a renter
+who is not yet verified gets a booking under review. Pay online through
+Razorpay (UPI, cards, netbanking, wallets) or at pickup.
 
 ### 3. Customer dashboard & live telematics
 Bookings split into active / upcoming / completed / cancelled with live
-countdown timers. Active rentals get a GPS telematics panel: map trace, speed
+countdown timers, an under-review state, a rejection reason, a pay-now button
+for unpaid online bookings, and a live late charge on an overdue rental. Active rentals get a GPS telematics panel: map trace, speed
 gauge with over-speed alerting, fuel or state-of-charge, coolant temperature,
 tyre pressures, battery voltage, odometer and a rolling speed trace. One-click
-PDF rental agreements and GST tax invoices. Digital handover checklist with
-photo upload and odometer verification, for both pre-pickup and post-return.
+PDF rental agreements and GST tax invoices. Digital handover checklist with at
+least five photos (four sides and the dashboard) and odometer verification, for
+both pre-pickup and post-return.
 24-hour free cancellation with a tiered refund calculator.
 
 ### 4. Admin dashboard & fleet operations
-Revenue and utilisation overview; peak-demand heatmap with Peak / High /
+A bookings desk: accept or reject (with the same reasons as Telegram), send the
+customer the confirmation and terms & conditions on WhatsApp, hand the car over,
+mark it **received** — which stops the late charge, with an option to waive it —
+and edit any booking (car, dates, pickup points, customer, status, payment, with
+re-pricing and an edit log). Revenue and utilisation overview; peak-demand heatmap with Peak / High /
 Moderate / Low / Available tiers and per-vehicle occupancy timelines; daily slot
 inspector with hourly pickup density, morning/afternoon/evening bands, customer
 paperwork and handover triggers; fleet inventory manager (add cars, update
 rates, upload photos, toggle maintenance and availability); KYC verification
-portal; promotions and coupon creator; system settings for deposits, GST rate,
-late penalty per hour and surge multipliers.
+portal; promotions and coupon creator; subscription pricing (monthly fee per
+car and tenure, km-pack surcharges, and the amount on a customer's
+subscription); system settings for deposits, GST rate, late penalty per hour
+(separately for 5-seaters and 7-seaters) and surge multipliers.
 
 ### 5. AI assistant (DelhiDrive Copilot)
 Floating support widget that answers from live platform data — pricing, zero-dep
@@ -131,7 +165,9 @@ structured slots and ranks three specific cars with reasons.
 ### 6. Biometric KYC & security verification
 Driving licence and Aadhaar upload with format validation, and Verified /
 Pending Review / Rejected flags that propagate onto every booking profile.
-Admin approves or rejects in one click, with a reason the customer can see.
+No booking can be placed without them, and the car is not handed over until
+they are verified. Admin approves or rejects in one click, with a reason the
+customer can see.
 
 ### 7. Support tickets & customer care
 In-app tickets for breakdown assistance, billing queries and trip extensions,
@@ -152,6 +188,9 @@ updates.
 ```
 delhidrive/
 ├── supabase-setup.sql       Tables, RLS policies, buckets, seed data
+├── supabase-booking-rules.sql  Sold-out slots, no double booking, KYC and payment guards
+├── supabase/functions/      notify-telegram, telegram-webhook, razorpay
+├── public/terms.html        Terms & conditions page (linked from WhatsApp)
 ├── .env.example             Supabase config template
 └── src/
     ├── lib/
@@ -159,7 +198,11 @@ delhidrive/
     │   ├── db.js            Data layer — Supabase or local store
     │   ├── auth.jsx         Auth context
     │   ├── store.jsx        App-wide data subscriptions
-    │   ├── pricing.js       Fare engine, hubs, add-ons, refunds
+    │   ├── pricing.js       Fare engine, hubs, add-ons, refunds, late charges
+    │   ├── availability.js  Which cars are booked when (sold out)
+    │   ├── rental.js        Booking states, car received
+    │   ├── payments.js      Razorpay checkout
+    │   ├── terms.js         Terms & conditions, acceptance message
     │   ├── pdf.js           jsPDF documents
     │   ├── ai.js            Copilot intents + recommendations
     │   ├── telematics.js    GPS/OBD simulator

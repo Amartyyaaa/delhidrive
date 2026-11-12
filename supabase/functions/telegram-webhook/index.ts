@@ -65,6 +65,69 @@ const esc = (v: unknown) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
+/* ------------------------------------------------------------------ */
+/* Terms to send the customer on acceptance                            */
+/* ------------------------------------------------------------------ */
+// Mirrors src/lib/terms.js (acceptanceMessage), kept short so the WhatsApp
+// link fits in a Telegram button. The full terms are on the website.
+
+const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://delhidrive.in';
+const HELPLINE = '+91 99112 05522';
+const HUB = {
+  id: 'hub',
+  address: 'Kaushambi Metro Station (Blue Line), Kaushambi, Ghaziabad, Uttar Pradesh 201010',
+  maps: 'https://www.google.com/maps/search/?api=1&query=Kaushambi+Metro+Station+Ghaziabad',
+};
+const HUB_NAMES: Record<string, string> = {
+  hub: 'Self pickup — Kaushambi Metro Station',
+  airport: 'Delhi Airport — Terminal 3',
+  station: 'New Delhi Railway Station',
+  home: 'Home Delivery',
+};
+
+const istDateTime = (ms: unknown) =>
+  new Date(Number(ms)).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+const rupees = (n: unknown) => '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
+
+function acceptanceText(d: Record<string, any>) {
+  const first = String(d.customerName || '').split(' ')[0] || 'there';
+  const rate = Number(d.quote?.latePenaltyPerHour) || 0;
+  return [
+    '*BOOKING CONFIRMED — DELHIDRIVE*',
+    '',
+    `Hi ${first}, your booking *${d.ref}* is confirmed.`,
+    `Car: ${d.carName}${d.carPlate ? ` (${d.carPlate})` : ''}`,
+    `Pickup: ${istDateTime(d.pickupMs)} — ${HUB_NAMES[d.locationId] || d.locationId || '—'}`,
+    ...(d.locationId === HUB.id ? [HUB.address, HUB.maps] : []),
+    `Return: ${istDateTime(d.returnMs)}`,
+    '',
+    '*Before pickup*',
+    '1. Bring your original driving licence and Aadhaar.',
+    '2. We photograph the car (4 sides + dashboard) at pickup and return.',
+    `3. Late return${rate ? ` costs ${rupees(rate)}/hour` : ' is charged by the hour'} until we receive the car.`,
+    '4. Return the fuel at the level you received it.',
+    '',
+    `Full terms & conditions: ${SITE_URL}/terms.html`,
+    'Taking the car means you accept these terms.',
+    `Helpline (24×7): ${HELPLINE}`,
+  ].join('\n');
+}
+
+/** wa.me chat with the customer, message ready to send. */
+function whatsappUrl(phone: unknown, text: string) {
+  let digits = String(phone ?? '').replace(/\D/g, '');
+  if (digits.length === 10) digits = `91${digits}`;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
+
 const nowIst = () =>
   new Date().toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',
@@ -212,17 +275,29 @@ serve(async (req: Request) => {
     await verifyKycFor(res.row.user_id);
 
     const d = res.data as Record<string, any>;
-    await tg('editMessageText', {
+    const accepted = {
       chat_id: chatId,
       message_id: messageId,
       parse_mode: 'HTML',
       text:
         `${esc(originalText)}\n\n` +
         `✅ <b>ACCEPTED</b> by ${esc(who)} · ${esc(nowIst())}\n` +
-        `<i>KYC marked verified. Message ${esc(d.customerName)} on ${esc(d.customerPhone)} ` +
-        `to confirm — or use the Ops console, which drafts it for you.</i>`,
-      reply_markup: { inline_keyboard: [] },
+        `<i>KYC marked verified. Send ${esc(d.customerName)} the confirmation and terms on ` +
+        `WhatsApp with the button below (${esc(d.customerPhone)}).</i>`,
+    };
+    // The share button carries the whole message in its link. If Telegram
+    // refuses it for any reason, still record the decision without it.
+    const edited = await tg('editMessageText', {
+      ...accepted,
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '📤 Send T&C to customer on WhatsApp', url: whatsappUrl(d.customerPhone, acceptanceText(d)) }],
+        ],
+      },
     });
+    if (!edited.ok) {
+      await tg('editMessageText', { ...accepted, reply_markup: { inline_keyboard: [] } });
+    }
     await answer('Booking accepted ✅');
     return new Response('ok');
   }

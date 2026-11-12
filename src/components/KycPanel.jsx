@@ -12,7 +12,7 @@ import { Button, Badge, Field, Input } from './ui';
 export const KYC_STATES = {
   Verified: { tone: 'success', icon: ShieldCheck, note: 'Your profile is cleared for handover.' },
   'Pending Review': { tone: 'warning', icon: Clock3, note: 'Our team is reviewing your documents.' },
-  Rejected: { tone: 'danger', icon: XCircle, note: 'A document needs to be re-uploaded.' },
+  Rejected: { tone: 'danger', icon: XCircle, note: 'A document needs to be re-uploaded before you can book.' },
 };
 
 function DocSlot({ label, hint, value, onPick, onClear, disabled }) {
@@ -165,7 +165,7 @@ export default function KycPanel() {
             Verification status: {status}
           </p>
           <p className="mt-0.5 text-[12.5px] text-slate-400">
-            {meta?.note || 'Upload your driving licence and Aadhaar to unlock vehicle handover.'}
+            {meta?.note || 'Upload your driving licence and Aadhaar — you need them to book a car.'}
           </p>
           {myKyc?.reason && status === 'Rejected' && (
             <p className="mt-1.5 text-[12px] text-rose-300">Reason: {myKyc.reason}</p>
