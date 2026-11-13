@@ -78,22 +78,39 @@ export function Badge({ tone = 'neutral', icon: Icon, className, children }) {
 }
 
 /* ----------------------------- Modal ------------------------------ */
+// Pop-ups can sit on top of one another — a photo viewer over the application
+// it belongs to. Escape closes only the one on top, and the page behind stays
+// locked until the last one has gone.
+const openModals = [];
+let pageOverflow = '';
+
 export function Modal({ open, onClose, title, subtitle, children, footer, size = 'lg' }) {
   const ref = useRef(null);
   const widths = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl', xl: 'max-w-5xl' };
 
+  // Callers pass a new onClose on every render. Reading it through a ref keeps
+  // the effect below tied to opening and closing only — re-running it on each
+  // render moved focus to the dialog, out of whatever field was being typed in.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
   useEffect(() => {
     if (!open) return;
-    const onKey = (e) => e.key === 'Escape' && onClose?.();
+    const token = {};
+    if (!openModals.length) pageOverflow = document.body.style.overflow;
+    openModals.push(token);
+    const onKey = (e) => {
+      if (e.key === 'Escape' && openModals[openModals.length - 1] === token) closeRef.current?.();
+    };
     document.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     ref.current?.focus();
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
+      openModals.splice(openModals.indexOf(token), 1);
+      if (!openModals.length) document.body.style.overflow = pageOverflow;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return (

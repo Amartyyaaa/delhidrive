@@ -155,6 +155,7 @@ export default function InventoryManager() {
                   <CarArt car={car} showPlate />
                   <div className="absolute left-2.5 top-2.5 flex gap-1.5">
                     <Badge tone="brand">{car.category}</Badge>
+                    {car.hosted && <Badge tone="info">Host car</Badge>}
                     {car.status === 'maintenance' ? (
                       <Badge tone="warning" icon={Wrench}>
                         Maintenance

@@ -38,3 +38,23 @@ export function useFileUrls(refs) {
 
   return urls;
 }
+
+/**
+ * Open a file in a new tab. On the local store a file is an inlined data: URL,
+ * which browsers refuse to open as a page — so hand it over as a blob instead.
+ * Call it straight from a click, or the new tab is blocked as a pop-up.
+ */
+export function openFile(url) {
+  if (!url) return;
+  let target = url;
+  if (/^data:/i.test(url)) {
+    const [head, body] = url.split(',');
+    const mime = head.match(/^data:([^;,]+)/i)?.[1] || 'application/octet-stream';
+    const binary = atob(body || '');
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    target = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  }
+  const tab = window.open(target, '_blank');
+  if (tab) tab.opener = null;
+}

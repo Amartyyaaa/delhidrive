@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LayoutDashboard,
   Flame,
@@ -15,8 +15,10 @@ import {
   Wrench,
   ClipboardList,
   Repeat,
+  KeyRound,
 } from 'lucide-react';
 import { useStore } from '../lib/store';
+import { useNotify } from '../lib/notify';
 import { ymd, inr, cx } from '../lib/format';
 import { Tabs, Stat, Badge } from '../components/ui';
 import Heatmap, { tierFor } from '../components/admin/Heatmap';
@@ -28,7 +30,9 @@ import SettingsPanel from '../components/admin/SettingsPanel';
 import AdminTickets from '../components/admin/AdminTickets';
 import BookingsManager from '../components/admin/BookingsManager';
 import SubscriptionsPanel from '../components/admin/SubscriptionsPanel';
+import HostManager from '../components/admin/HostManager';
 import { bookingPhase } from '../lib/rental';
+import { HOST_STATUS, carTitle } from '../lib/host';
 
 function Overview({ bookings, fleet, kycDocs, tickets }) {
   // Cancelled and rejected bookings earn nothing.
@@ -198,9 +202,41 @@ function Overview({ bookings, fleet, kycDocs, tickets }) {
 }
 
 export default function Admin() {
-  const { bookings, fleet, kycDocs, tickets, patchBooking } = useStore();
+  const { bookings, fleet, kycDocs, tickets, patchBooking, hostApplications } = useStore();
+  const { push } = useNotify();
   const [tab, setTab] = useState('overview');
   const [day, setDay] = useState(ymd(new Date()));
+
+  const pendingHosts = hostApplications.filter((a) => a.status === HOST_STATUS.pending).length;
+
+  // Say so when a vendor offers a car while the console is open. The first
+  // load only sets the baseline — those are not news.
+  const knownHosts = useRef(null);
+  useEffect(() => {
+    const ids = new Set(hostApplications.map((a) => a.id));
+    if (knownHosts.current === null) {
+      if (hostApplications.length) knownHosts.current = ids;
+      else {
+        // An empty list is either "still loading" or "none yet"; treat it as the baseline shortly.
+        const t = setTimeout(() => {
+          if (knownHosts.current === null) knownHosts.current = new Set();
+        }, 4000);
+        return () => clearTimeout(t);
+      }
+      return undefined;
+    }
+    hostApplications
+      .filter((a) => a.status === HOST_STATUS.pending && !knownHosts.current.has(a.id))
+      .forEach((a) =>
+        push('New host application · ' + a.ref, `${a.host?.name || 'A vendor'} offered a ${carTitle(a)}. Review it in Host management.`, {
+          type: 'info',
+          tag: 'host-new-' + a.ref,
+          ttl: 10000,
+        })
+      );
+    knownHosts.current = ids;
+    return undefined;
+  }, [hostApplications, push]);
 
   const pendingKyc = kycDocs.filter((k) => k.status === 'Pending Review').length;
   const openTickets = tickets.filter((t) => t.status !== 'Resolved' && t.status !== 'Closed').length;
@@ -213,6 +249,7 @@ export default function Admin() {
     { id: 'slots', label: 'Slot inspector', icon: CalendarSearch },
     { id: 'fleet', label: 'Fleet inventory', icon: Car, count: fleet.length },
     { id: 'kyc', label: 'KYC portal', icon: IdCard, count: pendingKyc || undefined },
+    { id: 'hosts', label: 'Host management', icon: KeyRound, count: pendingHosts || undefined },
     { id: 'coupons', label: 'Promotions', icon: Tag },
     { id: 'subscriptions', label: 'Subscriptions', icon: Repeat },
     { id: 'tickets', label: 'Support', icon: LifeBuoy, count: openTickets || undefined },
@@ -235,6 +272,11 @@ export default function Admin() {
           {pendingKyc > 0 && (
             <Badge tone="warning" icon={IdCard}>
               {pendingKyc} KYC pending
+            </Badge>
+          )}
+          {pendingHosts > 0 && (
+            <Badge tone="warning" icon={KeyRound}>
+              {pendingHosts} host {pendingHosts === 1 ? 'car' : 'cars'} to review
             </Badge>
           )}
           {openTickets > 0 && (
@@ -272,6 +314,7 @@ export default function Admin() {
       {tab === 'bookings' && <BookingsManager />}
       {tab === 'fleet' && <InventoryManager />}
       {tab === 'kyc' && <KycPortal />}
+      {tab === 'hosts' && <HostManager />}
       {tab === 'coupons' && <CouponCreator />}
       {tab === 'subscriptions' && <SubscriptionsPanel />}
       {tab === 'tickets' && <AdminTickets />}

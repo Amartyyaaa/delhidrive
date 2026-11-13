@@ -688,6 +688,8 @@ export default function HostYourCar() {
   const urls = useFileUrls(fileRefs);
 
   const formOpen = Boolean(user) && (showForm || applications.length === 0);
+  // The "one last step" banner has done its job once that application is decided.
+  const sentPending = sent && !myHostApplications.some((a) => a.ref === sent && a.status !== HOST_STATUS.pending);
   const pending = applications.filter((a) => a.status === HOST_STATUS.pending).length;
 
   /* ---------------- editing ---------------- */
@@ -919,7 +921,7 @@ export default function HostYourCar() {
           <HostAccountCard />
         ) : (
           <>
-            {sent && (
+            {sentPending && (
               <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 sm:p-5" data-testid="host-sent">
                 <div className="flex flex-wrap items-start gap-3">
                   <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-emerald-300" />

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users,
@@ -37,7 +38,13 @@ function Stars({ value, size = 12 }) {
 
 export default function CarModal({ car, open, onClose, soldOut = null, query = '' }) {
   const { settings } = useStore();
+  // Cars that come with several photos (a host's car has up to eight) get a
+  // strip to flick through; the first is the cover.
+  const [shot, setShot] = useState(0);
+  useEffect(() => setShot(0), [car?.id]);
   if (!car) return null;
+  const photos = Array.isArray(car.photos) && car.photos.length > 1 ? car.photos : [];
+  const shown = photos[shot] || car.photo;
   const offFleet = car.available === false || car.status === 'maintenance';
   const unavailable = offFleet || Boolean(soldOut);
   const hub = LOCATIONS.find((l) => l.id === car.hub);
@@ -94,9 +101,28 @@ export default function CarModal({ car, open, onClose, soldOut = null, query = '
         <div>
           <div className="overflow-hidden rounded-2xl border border-white/10">
             <div className="aspect-[16/9]">
-              <CarArt car={car} showPlate />
+              <CarArt key={shown || 'art'} car={shown === car.photo ? car : { ...car, photo: shown }} showPlate />
             </div>
           </div>
+          {photos.length > 0 && (
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {photos.map((src, i) => (
+                <button
+                  key={src}
+                  type="button"
+                  onClick={() => setShot(i)}
+                  aria-label={`Photo ${i + 1} of ${photos.length}`}
+                  aria-pressed={i === shot}
+                  className={cx(
+                    'h-14 w-20 shrink-0 overflow-hidden rounded-lg border transition',
+                    i === shot ? 'border-brand-400' : 'border-white/10 opacity-60 hover:opacity-100'
+                  )}
+                >
+                  <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
@@ -128,19 +154,21 @@ export default function CarModal({ car, open, onClose, soldOut = null, query = '
             ))}
           </div>
 
-          <div className="mt-5">
-            <h4 className="mb-2.5 text-[13px] font-semibold uppercase tracking-wide text-slate-400">
-              Key features
-            </h4>
-            <ul className="grid gap-1.5 sm:grid-cols-2">
-              {(car.features || []).map((f) => (
-                <li key={f} className="flex items-start gap-2 text-[13px] text-slate-300">
-                  <Check size={13} className="mt-0.5 shrink-0 text-emerald-400" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </div>
+          {(car.features || []).length > 0 && (
+            <div className="mt-5">
+              <h4 className="mb-2.5 text-[13px] font-semibold uppercase tracking-wide text-slate-400">
+                Key features
+              </h4>
+              <ul className="grid gap-1.5 sm:grid-cols-2">
+                {car.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-[13px] text-slate-300">
+                    <Check size={13} className="mt-0.5 shrink-0 text-emerald-400" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {(car.terrain || []).length > 0 && (
             <div className="mt-5">
