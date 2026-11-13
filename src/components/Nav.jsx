@@ -14,6 +14,7 @@ import {
   Database,
   HardDrive,
   Repeat,
+  KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useNotify } from '../lib/notify';
@@ -25,6 +26,7 @@ import { LogoMark } from './Logo';
 const LINKS = [
   { to: '/fleet', label: 'Fleet', icon: LayoutGrid },
   { to: '/subscribe', label: 'Subscribe', icon: Repeat },
+  { to: '/host-your-car', label: 'Host your car', icon: KeyRound },
   { to: '/dashboard', label: 'My Bookings', icon: Gauge, auth: true },
   { to: '/admin', label: 'Admin', icon: ShieldCheck, admin: true },
 ];

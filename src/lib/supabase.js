@@ -60,8 +60,24 @@ export const supabaseReady = configured && !initError;
 export const supabaseConfigured = configured;
 export { supabase, initError };
 
-/** Storage buckets created by supabase-setup.sql */
-export const BUCKETS = { kyc: 'kyc', inspections: 'kyc', fleet: 'fleet' };
+/** Storage buckets created by supabase-setup.sql, and `hosts` by supabase-host-your-car.sql */
+export const BUCKETS = { kyc: 'kyc', inspections: 'kyc', fleet: 'fleet', hosts: 'hosts' };
+
+let authSettings = null;
+
+/**
+ * What the project's sign-in is set up to do — which providers are switched
+ * on, and whether a new account has to confirm its email first. Lets a screen
+ * offer "Continue with Google" only where it will actually work. Resolves to
+ * null without Supabase, or if the question cannot be answered.
+ */
+export function loadAuthSettings() {
+  if (!configured || initError) return Promise.resolve(null);
+  authSettings ||= fetch(`${url}/auth/v1/settings`, { headers: { apikey: anonKey } })
+    .then((res) => (res.ok ? res.json() : null))
+    .catch(() => null);
+  return authSettings;
+}
 
 export const ADMIN_EMAILS = String(import.meta.env.VITE_ADMIN_EMAILS || 'admin@delhidrive.in')
   .split(',')

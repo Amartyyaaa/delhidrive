@@ -27,10 +27,26 @@ export const COL = {
   // Created by supabase/functions/notify-telegram/webhooks.sql — the app
   // writes customer subscriptions here.
   subscriptions: 'subscriptions',
+  // Created by supabase-host-your-car.sql — a vendor's offer of a car. It
+  // becomes a `fleet` row only when an admin approves it.
+  hostApplications: 'host_applications',
 };
 
 /** Tables whose rows belong to a specific signed-in user. */
-const OWNED = new Set([COL.bookings, COL.tickets, COL.kyc, COL.users, COL.subscriptions]);
+const OWNED = new Set([
+  COL.bookings,
+  COL.tickets,
+  COL.kyc,
+  COL.users,
+  COL.subscriptions,
+  COL.hostApplications,
+]);
+
+/** The script that creates each table, for the "run this first" message. */
+const SETUP_SCRIPT = { [COL.hostApplications]: 'supabase-host-your-car.sql' };
+
+/** PostgREST and Postgres each have their own code for "no such table". */
+const isMissingTable = (error) => error?.code === 'PGRST205' || error?.code === '42P01';
 
 /* ------------------------------------------------------------------ */
 /* Row <-> document mapping                                            */
@@ -415,14 +431,157 @@ function inlineImage(file) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Private files kept by reference                                     */
+/* ------------------------------------------------------------------ */
+
+// A vendor's RC, insurance and car photos are stored as a reference —
+// "bucket:key" — rather than a link. A link to a private file has to expire,
+// and one saved in a row would be dead by the time a dispute needs it; a
+// reference is swapped for a short-lived link whenever a screen shows the file.
+//
+// Without Supabase the "reference" is the file itself, inlined, so the local
+// store stays self-contained.
+
+const isInlineFile = (ref) => /^(data:|blob:)/i.test(String(ref || ''));
+
+function splitFileRef(ref) {
+  const value = String(ref || '');
+  const at = value.indexOf(':');
+  if (at < 1) return null;
+  const bucket = value.slice(0, at);
+  const key = value.slice(at + 1);
+  if (!Object.values(BUCKETS).includes(bucket) || !key || key.startsWith('/')) return null;
+  return { bucket, key };
+}
+
+/** Say what went wrong with an upload in words a vendor can act on. */
+function friendlyUpload(error) {
+  const msg = error?.message || 'Upload failed.';
+  if (/bucket not found/i.test(msg))
+    return 'Uploads are not switched on yet. Run supabase-host-your-car.sql in the Supabase SQL Editor.';
+  if (/mime type/i.test(msg)) return 'Only JPG, PNG or PDF files can be uploaded.';
+  if (/maximum allowed size|too large/i.test(msg)) return 'That file is too large — the limit is 10 MB.';
+  if (/row-level security|unauthorized|jwt/i.test(msg)) return 'Your session expired — please sign in again.';
+  return msg;
+}
+
+/**
+ * Upload to a private bucket and return the file's reference. Unlike
+ * uploadFile there is no inline fallback when Supabase is on: a failed upload
+ * is reported, so a document is never silently swapped for a shrunken copy
+ * squeezed into the database row.
+ *
+ * `path` is "<bucket prefix>/<key>", e.g. "hosts/<uid>/HST1A2B3C/rc-x.jpg".
+ */
+export async function uploadPrivateFile(path, file) {
+  if (!supabaseReady) return await inlineImage(file);
+
+  const [prefix, ...rest] = String(path).split('/');
+  const bucket = BUCKETS[prefix];
+  const key = rest.join('/');
+  if (!bucket || !key) throw new Error('That upload has nowhere to go.');
+
+  const { error } = await supabase.storage
+    .from(bucket)
+    .upload(key, file, { upsert: false, contentType: file.type || 'application/octet-stream' });
+  if (error) throw new Error(friendlyUpload(error));
+  return `${bucket}:${key}`;
+}
+
+const LINK_SECONDS = 60 * 60;
+const LINK_REUSE_MS = 40 * 60 * 1000;
+const linkCache = new Map(); // ref -> { url, until }
+
+/**
+ * Short-lived links for a list of private file references, as { ref: url }.
+ * A reference this account may not open is simply left out.
+ */
+export async function privateFileUrls(refs) {
+  const out = {};
+  const wanted = new Map(); // bucket -> [{ ref, key }]
+  const now = Date.now();
+
+  for (const ref of new Set((refs || []).filter(Boolean))) {
+    if (isInlineFile(ref)) {
+      out[ref] = ref;
+      continue;
+    }
+    const cached = linkCache.get(ref);
+    if (cached && cached.until > now) {
+      out[ref] = cached.url;
+      continue;
+    }
+    const parts = supabaseReady ? splitFileRef(ref) : null;
+    if (!parts) continue;
+    if (!wanted.has(parts.bucket)) wanted.set(parts.bucket, []);
+    wanted.get(parts.bucket).push({ ref, key: parts.key });
+  }
+
+  await Promise.all(
+    [...wanted].map(async ([bucket, items]) => {
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrls(
+        items.map((it) => it.key),
+        LINK_SECONDS
+      );
+      if (error) {
+        console.warn('[DelhiDrive] could not open private files:', error.message);
+        return;
+      }
+      items.forEach((it, i) => {
+        const row = (data || []).find((d) => d?.path === it.key) || data?.[i];
+        if (!row?.signedUrl) return;
+        out[it.ref] = row.signedUrl;
+        // Hand out a fresh link well before this one lapses, so a screen
+        // that re-asks every 45 minutes (useFileUrls) never holds a dead one.
+        linkCache.set(it.ref, { url: row.signedUrl, until: now + LINK_REUSE_MS });
+      });
+    })
+  );
+  return out;
+}
+
+/**
+ * Copy a private file into the public fleet bucket and return its public
+ * address — how the photos an admin approves become the listing's photos.
+ * Only an admin's session is allowed to do either half of this.
+ */
+export async function publishPrivateFile(ref, destKey) {
+  if (isInlineFile(ref) || !supabaseReady) return ref;
+
+  const parts = splitFileRef(ref);
+  if (!parts) throw new Error('That photo could not be found.');
+
+  const { data: blob, error } = await supabase.storage.from(parts.bucket).download(parts.key);
+  if (error) throw new Error(`Could not read the photo: ${error.message}`);
+
+  const { error: upErr } = await supabase.storage
+    .from(BUCKETS.fleet)
+    .upload(destKey, blob, { upsert: true, contentType: blob.type || 'image/jpeg' });
+  if (upErr) throw new Error(`Could not publish the photo: ${upErr.message}`);
+
+  return supabase.storage.from(BUCKETS.fleet).getPublicUrl(destKey).data.publicUrl;
+}
+
+/* ------------------------------------------------------------------ */
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Has this table been created yet? Lets a screen say "not switched on yet"
+ * up front instead of failing when someone presses Submit. Always true on the
+ * local store, and true when the answer is anything but "no such table".
+ */
+export async function tableExists(name) {
+  if (!supabaseReady) return true;
+  const { error } = await supabase.from(name).select('id').limit(1);
+  return !isMissingTable(error);
+}
 
 /** Turn a Postgres/PostgREST error into something a person can act on. */
 function friendly(error, table) {
   const msg = error?.message || 'Unknown database error';
-  if (error?.code === '42P01')
-    return `The "${table}" table does not exist yet. Run supabase-setup.sql in the Supabase SQL Editor.`;
+  if (isMissingTable(error))
+    return `The "${table}" table does not exist yet. Run ${SETUP_SCRIPT[table] || 'supabase-setup.sql'} in the Supabase SQL Editor.`;
   if (error?.code === '42501' || /row-level security/i.test(msg))
     return `You do not have permission to change "${table}". Sign in with an admin account, or check the policies from supabase-setup.sql.`;  if (/JWT|not authenticated/i.test(msg)) return 'Your session expired — please sign in again.';
   return msg;

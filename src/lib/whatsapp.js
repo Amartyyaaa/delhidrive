@@ -7,9 +7,10 @@
 // nothing has to be typed. See the README for how to make it fully automatic
 // with a Supabase Edge Function later.
 
-import { WHATSAPP_NUMBER } from './config';
+import { WHATSAPP_NUMBER, SITE_URL } from './config';
 import { LOCATIONS, locationLabel } from './pricing';
 import { inr } from './format';
+import { HOST_SUBMITTED_MESSAGE, HOST_STATUS, carTitle } from './host';
 
 const hubName = locationLabel;
 
@@ -124,5 +125,44 @@ export function rejectionMessage(booking, { refund = 0 } = {}) {
     ...(refund > 0 ? ['', `Your payment of ${inr(refund)} will be refunded to the original payment method within 7 working days.`] : []),
     '',
     'Reply here if you have questions, or to book again once this is sorted.',
+  ].join('\n');
+}
+
+/* ------------------------------------------------------------------ */
+/* Host Your Car                                                       */
+/* ------------------------------------------------------------------ */
+
+/** A chat with operations, with the vendor's "I have submitted" message ready to send. */
+export function hostSubmittedWhatsappUrl() {
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(HOST_SUBMITTED_MESSAGE)}`;
+}
+
+/** Telling a vendor what was decided about their car. */
+export function hostDecisionMessage(app) {
+  const first = String(app.host?.name || '').split(' ')[0] || 'there';
+  const car = `${carTitle(app)}${app.car?.plate ? ` (${app.car.plate})` : ''}`;
+
+  if (app.status === HOST_STATUS.approved) {
+    return [
+      '*DELHIDRIVE — YOUR CAR IS LIVE*',
+      '',
+      `Hi ${first}, good news — your ${car} has been approved and is now live on DelhiDrive.`,
+      '',
+      `See it here: ${SITE_URL}/fleet?q=${encodeURIComponent(carTitle(app))}`,
+      `Application: ${app.ref}`,
+      '',
+      'Reply here if you have any questions.',
+    ].join('\n');
+  }
+
+  return [
+    '*DELHIDRIVE — HOST APPLICATION UPDATE*',
+    '',
+    `Hi ${first}, thank you for offering your ${car} to DelhiDrive. We could not approve it this time.`,
+    '',
+    `Reason: ${app.rejectionReason || 'not specified'}`,
+    '',
+    `You can correct this and apply again here: ${SITE_URL}/host-your-car`,
+    `Application: ${app.ref}`,
   ].join('\n');
 }

@@ -31,6 +31,7 @@ export function StoreProvider({ children }) {
   const [kycDocs, setKycDocs] = useState([]);
   const [settings, setSettings] = useState(() => normaliseSettings());
   const [subscriptions, setSubscriptions] = useState([]);
+  const [hostApplications, setHostApplications] = useState([]);
   const [remoteSlots, setRemoteSlots] = useState(null);
   const [ready, setReady] = useState(false);
   const seeded = useRef({ fleet: false, coupons: false });
@@ -78,6 +79,16 @@ export function StoreProvider({ children }) {
     return watchCollection(COL.subscriptions, setSubscriptions);
   }, [isAdmin]);
 
+  // Host Your Car applications. A vendor gets their own, an admin gets all of
+  // them — the database decides which — so this follows whoever is signed in.
+  useEffect(() => {
+    if (!user) {
+      setHostApplications([]);
+      return undefined;
+    }
+    return watchCollection(COL.hostApplications, setHostApplications);
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ---------------- availability ---------------- */
   // Other customers' bookings are invisible here, so their busy windows are
   // polled from the server — on load, every minute, and whenever the tab
@@ -112,6 +123,10 @@ export function StoreProvider({ children }) {
     [kycDocs, user]
   );
   const activeCoupons = useMemo(() => coupons.filter((c) => c.active !== false), [coupons]);
+  const myHostApplications = useMemo(
+    () => (user ? hostApplications.filter((a) => a.userId === user.uid) : []),
+    [hostApplications, user]
+  );
 
   /* ---------------- actions ---------------- */
   const createBooking = useCallback((data) => addItem(COL.bookings, data), []);
@@ -139,6 +154,9 @@ export function StoreProvider({ children }) {
 
   const patchSubscription = useCallback((id, patch) => updateItem(COL.subscriptions, id, patch), []);
 
+  const createHostApplication = useCallback((data) => addItem(COL.hostApplications, data), []);
+  const patchHostApplication = useCallback((id, patch) => updateItem(COL.hostApplications, id, patch), []);
+
   const value = useMemo(
     () => ({
       ready,
@@ -154,6 +172,8 @@ export function StoreProvider({ children }) {
       myKyc,
       settings,
       subscriptions,
+      hostApplications,
+      myHostApplications,
       busySlots,
       refreshBusySlots,
       createBooking,
@@ -168,6 +188,8 @@ export function StoreProvider({ children }) {
       patchKyc,
       saveSettings,
       patchSubscription,
+      createHostApplication,
+      patchHostApplication,
     }),
     [
       ready,
@@ -183,6 +205,8 @@ export function StoreProvider({ children }) {
       myKyc,
       settings,
       subscriptions,
+      hostApplications,
+      myHostApplications,
       busySlots,
       refreshBusySlots,
       createBooking,
@@ -197,6 +221,8 @@ export function StoreProvider({ children }) {
       patchKyc,
       saveSettings,
       patchSubscription,
+      createHostApplication,
+      patchHostApplication,
     ]
   );
 

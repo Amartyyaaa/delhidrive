@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Car, Github, ShieldCheck, FileText } from 'lucide-react';
 import Nav from './components/Nav';
 import Copilot from './components/Copilot';
@@ -9,8 +10,12 @@ import Checkout from './pages/Checkout';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
 import Login from './pages/Login';
+import HostYourCar from './pages/HostYourCar';
 import { useAuth } from './lib/auth';
 import { useStore } from './lib/store';
+import { useNotify } from './lib/notify';
+import { takeReturnTo } from './lib/returnTo';
+import { HOST_STATUS, carTitle } from './lib/host';
 import { Spinner, Button } from './components/ui';
 import { featureAuditPdf } from './lib/pdf';
 import { supabaseReady } from './lib/supabase';
@@ -40,6 +45,63 @@ function Protected({ children, adminOnly }) {
   return children;
 }
 
+/**
+ * Finishes a sign-in that left the site — Google, or an email confirmation
+ * link — by returning the person to the page they started it from.
+ */
+function ResumeAfterSignIn() {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    if (loading || !user) return;
+    const path = takeReturnTo();
+    if (path && path !== pathname) navigate(path, { replace: true });
+  }, [user?.uid, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null;
+}
+
+/**
+ * Tells a vendor what was decided about a car they offered — the moment it
+ * happens if the site is open, otherwise the next time they visit. Each
+ * decision is announced once per browser.
+ */
+function HostDecisionNotifier() {
+  const { myHostApplications } = useStore();
+  const { push } = useNotify();
+
+  useEffect(() => {
+    myHostApplications.forEach((app) => {
+      if (app.status === HOST_STATUS.pending || !app.reviewedAt) return;
+      const key = `delhidrive:hostDecision:${app.id}`;
+      const stamp = `${app.status}:${app.reviewedAt}`;
+      try {
+        if (localStorage.getItem(key) === stamp) return;
+        localStorage.setItem(key, stamp);
+      } catch {
+        return; // no storage to remember with — better silent than repeating on every page
+      }
+      if (app.status === HOST_STATUS.approved) {
+        push('Your car is live on DelhiDrive', `${carTitle(app)} (${app.car?.plate}) has been approved.`, {
+          type: 'success',
+          tag: 'host-' + app.ref,
+          ttl: 12000,
+        });
+      } else {
+        push(
+          'Your host application was not approved',
+          `${carTitle(app)}: ${app.rejectionReason || 'see the details on the Host your car page'}.`,
+          { type: 'warning', tag: 'host-' + app.ref, ttl: 12000 }
+        );
+      }
+    });
+  }, [myHostApplications, push]);
+
+  return null;
+}
+
 function Footer() {
   const { fleet, bookings, activeCoupons, tickets } = useStore();
   return (
@@ -67,6 +129,11 @@ function Footer() {
             <li>
               <Link to="/subscribe" className="link-quiet">
                 Smart Subscription
+              </Link>
+            </li>
+            <li>
+              <Link to="/host-your-car" className="link-quiet">
+                Host your car
               </Link>
             </li>
             <li>
@@ -131,12 +198,15 @@ function Footer() {
 export default function App() {
   return (
     <div className="flex min-h-screen flex-col">
+      <ResumeAfterSignIn />
+      <HostDecisionNotifier />
       <Nav />
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/fleet" element={<Fleet />} />
           <Route path="/subscribe" element={<Subscribe />} />
+          <Route path="/host-your-car" element={<HostYourCar />} />
           <Route path="/checkout/:carId" element={<Checkout />} />
           <Route path="/login" element={<Login />} />
           <Route

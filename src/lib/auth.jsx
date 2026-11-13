@@ -94,8 +94,10 @@ export function AuthProvider({ children }) {
     [persistLocal]
   );
 
+  // `next` is the page to come back to from the confirmation email, for a
+  // sign-up that started somewhere other than the login screen.
   const signUp = useCallback(
-    async (name, email, password) => {
+    async (name, email, password, next) => {
       if (!supabaseReady) {
         if (!email || password.length < 4)
           throw new Error('Enter an email and a password of 4+ characters.');
@@ -110,28 +112,33 @@ export function AuthProvider({ children }) {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { name: name || email.split('@')[0] } },
+        options: {
+          data: { name: name || email.split('@')[0] },
+          ...(next ? { emailRedirectTo: window.location.origin + next } : {}),
+        },
       });
       if (error) throw error;
 
       // With "Confirm email" switched on, Supabase returns a user but no
       // session — say so plainly rather than looking like a silent failure.
       if (data.user && !data.session) {
-        throw new Error(
+        const err = new Error(
           'Account created. Check your inbox and click the confirmation link, then sign in. ' +
             '(To skip this, turn off "Confirm email" in Supabase > Authentication > Sign In / Providers.)'
         );
+        err.needsConfirmation = true;
+        throw err;
       }
     },
     [persistLocal]
   );
 
-  const signInWithGoogle = useCallback(async () => {
+  const signInWithGoogle = useCallback(async (next = '/dashboard') => {
     if (!supabaseReady)
       throw new Error('Google sign-in needs Supabase configured in your .env file.');
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin + '/dashboard' },
+      options: { redirectTo: window.location.origin + next },
     });
     if (error) throw error;
   }, []);
