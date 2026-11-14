@@ -149,6 +149,29 @@ export function answer(question, ctx) {
     };
   }
 
+  /* -- a car owner, not a renter -- */
+  if (
+    has(
+      q,
+      'host my',
+      'host your',
+      'host a car',
+      'become a host',
+      'list my car',
+      'list my vehicle',
+      'rent out my',
+      'rent my car out',
+      'my car on rent',
+      'attach my car',
+      'lease my car',
+      'earn from my car'
+    )
+  ) {
+    return {
+      text: `You can offer your own car on DelhiDrive. Open "Host your car" in the menu — delhidrive.in/host-your-car — create a login and send us your contact details, the car's details, its RC and insurance, and 6 to 8 clear photos.\n\nOur team reviews every car. You can follow the status on that same page, and once the car is approved it goes live for renters on the website and the app.`,
+    };
+  }
+
   /* -- recommendation -- */
   const slots = parseSlots(q);
   const wantsRec =

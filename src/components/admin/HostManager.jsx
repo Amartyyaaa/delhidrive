@@ -99,8 +99,8 @@ function FileTile({ refId, url, label, onOpen, className }) {
       title={pdf ? `Open ${label} (PDF)` : `View ${label}`}
     >
       {pdf ? (
-        <span className="flex h-full flex-col items-center justify-center gap-1.5 text-brand-300">
-          <FileText size={22} />
+        <span className="flex h-full flex-col items-center justify-center gap-1 pb-6 text-brand-300">
+          <FileText size={20} />
           <span className="text-[11px] font-medium">Open PDF</span>
         </span>
       ) : url ? (
@@ -393,7 +393,7 @@ export default function HostManager() {
           body="A car offered on the Host your car page appears here the moment it is submitted."
         />
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {visible.map((app) => {
             const warnings = warningsFor(app, { fleet, applications: hostApplications });
             const gone = app.status === HOST_STATUS.approved && !listingOf(app);
@@ -402,7 +402,7 @@ export default function HostManager() {
                 <button
                   type="button"
                   onClick={() => setOpenId(app.id)}
-                  className="h-24 w-32 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-ink-950"
+                  className="h-20 w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-ink-950 sm:h-24 sm:w-32"
                   aria-label={`Review ${carTitle(app)}`}
                 >
                   {urls[app.photos?.[0]?.ref] ? (
@@ -493,8 +493,9 @@ export default function HostManager() {
                 rel="noopener noreferrer"
                 variant="ghost"
                 icon={MessageCircle}
+                aria-label="Message host on WhatsApp"
               >
-                Message host
+                <span className="hidden sm:inline">Message host</span>
               </Button>
               <div className="flex flex-wrap gap-2">
                 {open.status === HOST_STATUS.approved ? (
@@ -535,7 +536,7 @@ export default function HostManager() {
         }
       >
         {open && (
-          <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.25fr_1fr]">
             <div className="space-y-5">
               <section>
                 <h4 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-slate-400">
@@ -712,8 +713,8 @@ export default function HostManager() {
         title="Approve and publish"
         subtitle={approvingApp ? `${carTitle(approvingApp)} · ${approvingApp.car?.plate} · ${approvingApp.ref}` : ''}
         footer={
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[12px] text-slate-500">Goes live on the website and the app straight away.</p>
+          <div className="flex flex-wrap items-center justify-end gap-3 sm:justify-between">
+            <p className="hidden text-[12px] text-slate-500 sm:block">Goes live on the website and the app straight away.</p>
             <div className="flex gap-2">
               <Button variant="secondary" onClick={() => setApproving(null)} disabled={busy}>
                 Cancel
@@ -729,7 +730,7 @@ export default function HostManager() {
           <div className="space-y-5">
             <section>
               <p className="label">Price</p>
-              <div className="grid gap-4 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <div data-field="listing.rate">
                   <Field label="Per day / 24h (₹)" hint={approvingApp.car?.expectedRate ? `Host expects ${inr(approvingApp.car.expectedRate)}` : 'Host gave no figure'}>
                     <Input type="number" min="0" value={approving.listing.rate} onChange={(e) => setListing('rate', e.target.value)} />
@@ -750,7 +751,7 @@ export default function HostManager() {
             </section>
 
             <section>
-              <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <div className="mb-1.5 flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-2">
                 <p className="label mb-0">Photos for the listing</p>
                 <p className="text-[11.5px] text-slate-500">
                   {approving.picked.length} of {(approvingApp.photos || []).length} chosen · tap to leave one out · the star is

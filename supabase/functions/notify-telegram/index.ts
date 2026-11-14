@@ -9,7 +9,7 @@
 // That is strictly better than firing from the client: it works even if the
 // phone dies mid-booking, and it covers rows written by the website too.
 //
-//   INSERT  new booking, KYC submission or subscription
+//   INSERT  new booking, KYC submission, subscription or host application
 //   UPDATE  a booking accepted, rejected, cancelled, edited, paid, handed over
 //           or received back; a KYC re-submitted after a rejection
 //   {"overdue": true}  sent every 15 minutes by pg_cron — alerts once for each
@@ -160,6 +160,25 @@ function subscriptionAlert(d: Record<string, any>) {
   ].join('\n');
 }
 
+/** A vendor has offered their car on the website's Host your car page. */
+function hostApplicationAlert(d: Record<string, any>) {
+  const car = [d.car?.brand, d.car?.model, d.car?.variant].filter(Boolean).join(' ');
+  return [
+    `🔑 <b>New host application — needs review!</b>`,
+    ``,
+    `<b>Ref:</b> ${esc(d.ref)}`,
+    `<b>Host:</b> ${esc(d.host?.name)} · ${esc(d.host?.phone)}`,
+    `<b>Car:</b> ${esc(car)}${d.car?.year ? ` (${esc(d.car.year)})` : ''}`,
+    `<b>Registration:</b> ${esc(d.car?.plate)}`,
+    `<b>Parked at:</b> ${esc(d.host?.city)}`,
+    ...(d.car?.expectedRate ? [`<b>Expects:</b> ${esc(inr(d.car.expectedRate))}/day`] : []),
+    `<b>Photos:</b> ${Array.isArray(d.photos) ? d.photos.length : 0}`,
+    ``,
+    `<i>Review it in the Ops console → Host management.</i>`,
+    `<b>Source:</b> DelhiDrive`,
+  ].join('\n');
+}
+
 /**
  * What changed on a booking, as one message — or null when nothing worth an
  * alert changed. Decisions taken in Telegram itself are skipped: the bot has
@@ -255,7 +274,7 @@ function testAlert() {
   return [
     `✅ <b>DelhiDrive is connected</b>`,
     ``,
-    `Booking, KYC, subscription and overdue-car alerts will arrive in this chat.`,
+    `Booking, KYC, subscription, host application and overdue-car alerts will arrive in this chat.`,
     `<i>Sent ${esc(fmtDateTime(Date.now()))}</i>`,
   ].join('\n');
 }
@@ -457,6 +476,7 @@ serve(async (req: Request) => {
     if (data.status === 'Under review') keyboard = decisionKeyboard(record.id);
   } else if (table === 'kyc') text = kycAlert(data);
   else if (table === 'subscriptions') text = subscriptionAlert(data);
+  else if (table === 'host_applications') text = hostApplicationAlert(data);
 
   if (!text) return json({ ok: true, skipped: true, table });
 

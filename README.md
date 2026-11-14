@@ -86,7 +86,18 @@ to hold for the website **and** the app, because both write to these tables:
 
 Safe to run again.
 
-### 5. Turn off email confirmation (optional but easier)
+### 5. Switch on Host your car
+Then run `supabase-host-your-car.sql` the same way. It creates what the
+**/host-your-car** page and **Admin → Host management** need: the table a car
+owner's application is saved in, the rules that keep it private to them and
+the admins, and a private storage bucket for their RC, insurance and photos.
+
+Until it has been run, the page tells visitors that host registration opens
+shortly and points them to WhatsApp, and Host management shows a reminder.
+
+Safe to run again.
+
+### 6. Turn off email confirmation (optional but easier)
 **Authentication** → **Sign In / Providers** → **Email** → switch off
 **Confirm email**. Otherwise every new signup has to click a link in their
 inbox before they can log in.
@@ -94,15 +105,16 @@ inbox before they can log in.
 To enable Google sign-in, turn on the **Google** provider on the same screen
 and follow its instructions.
 
-### 6. Restart and check
+### 7. Restart and check
 Restart the dev server. The badge in the header should read **Supabase live**
 instead of *Local store*, and **Table Editor → fleet** should show 14 rows.
 
 Sign up with your admin email, and the **Admin** link appears in the nav.
 
 ### Optional: Telegram alerts and online payments
-- **Telegram** — booking, KYC and payment alerts, accept/reject buttons, and an
-  alert when a car is overdue: `supabase/functions/notify-telegram/README.md`.
+- **Telegram** — booking, KYC, payment and host application alerts,
+  accept/reject buttons, and an alert when a car is overdue:
+  `supabase/functions/notify-telegram/README.md`.
 - **Razorpay** — online payment at checkout: `supabase/functions/razorpay/README.md`.
   Without it, checkout offers pay-at-pickup only.
 
@@ -181,6 +193,23 @@ Supabase Postgres, Auth and Storage with row-level security; browser push
 notifications for booking confirmations, payment receipts and inspection
 updates.
 
+### 9. Host your car
+A car owner offers their car at `/host-your-car`. The link can be shared as it
+is, and shows a preview card on WhatsApp. After creating a login they give
+their contact details, the car, its RC and insurance (photo or PDF) and 6–8
+photos, which are shrunk in the browser before upload. Submitting saves the
+application and opens WhatsApp to operations with a message ready to send. The
+same page shows the owner where each application stands, updates live, and
+lets them fix and re-send one that was rejected.
+
+In **Admin → Host management** each application appears as it is submitted. An
+admin sees every detail, document and photo, then approves it — setting the
+price and choosing the listing photos — or rejects it with a reason. Approving
+adds the car to the `fleet` table, so it goes live on the website and the app
+together. Pending and rejected cars are never public, and taking an approved
+car down removes it again. After a decision the console offers a ready-written
+WhatsApp message for the owner.
+
 ---
 
 ## Project layout
@@ -189,6 +218,8 @@ updates.
 delhidrive/
 ├── supabase-setup.sql       Tables, RLS policies, buckets, seed data
 ├── supabase-booking-rules.sql  Sold-out slots, no double booking, KYC and payment guards
+├── supabase-host-your-car.sql  Host applications, their privacy rules and storage bucket
+├── scripts/postbuild.js     404 fallback for deep links; a real page for /host-your-car
 ├── supabase/functions/      notify-telegram, telegram-webhook, razorpay
 ├── public/terms.html        Terms & conditions page (linked from WhatsApp)
 ├── .env.example             Supabase config template
@@ -201,6 +232,7 @@ delhidrive/
     │   ├── pricing.js       Fare engine, hubs, add-ons, refunds, late charges
     │   ├── availability.js  Which cars are booked when (sold out)
     │   ├── rental.js        Booking states, car received
+    │   ├── host.js          Host your car — application rules, approval to fleet car
     │   ├── payments.js      Razorpay checkout
     │   ├── terms.js         Terms & conditions, acceptance message
     │   ├── pdf.js           jsPDF documents
@@ -213,7 +245,7 @@ delhidrive/
     │   ├── ui.jsx           Buttons, modals, inputs, tabs, badges
     │   ├── admin/           Heatmap, slot inspector, inventory, KYC, coupons…
     │   └── …                Nav, CarCard, CarModal, Copilot, Telematics…
-    └── pages/               Home, Fleet, Checkout, Dashboard, Admin, Login
+    └── pages/               Home, Fleet, Checkout, Dashboard, Admin, Login, HostYourCar
 ```
 
 ---

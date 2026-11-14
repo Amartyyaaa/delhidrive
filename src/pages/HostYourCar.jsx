@@ -109,8 +109,9 @@ const FIELD_ORDER = [
 
 const localId = () => Math.random().toString(36).slice(2, 10);
 
+// JSON round-trip rather than structuredClone: older iPhones do not have it.
 const freshDraft = (user) => ({
-  ...structuredClone(BLANK_APPLICATION),
+  ...JSON.parse(JSON.stringify(BLANK_APPLICATION)),
   host: { ...BLANK_APPLICATION.host, name: user?.name || '', phone: user?.phone || '' },
   ref: newHostRef(),
   replaces: null,
@@ -634,6 +635,13 @@ export default function HostYourCar() {
   const [switchedOn, setSwitchedOn] = useState(true);
   const formRef = useRef(null);
   const draftOwner = useRef(null);
+  const previews = useRef([]); // object URLs made for instant thumbnails
+  const preview = (file) => {
+    const url = URL.createObjectURL(file);
+    previews.current.push(url);
+    return url;
+  };
+  useEffect(() => () => previews.current.forEach((url) => URL.revokeObjectURL(url)), []);
 
   useEffect(() => {
     document.title = 'Host your car · DelhiDrive';
@@ -726,7 +734,7 @@ export default function HostYourCar() {
       id,
       name: file.name,
       pdf: !isImage,
-      preview: isImage ? URL.createObjectURL(file) : '',
+      preview: isImage ? preview(file) : '',
       busy: true,
     };
     setDraft((d) => ({ ...d, docs: { ...d.docs, [slot]: item } }));
@@ -754,7 +762,7 @@ export default function HostYourCar() {
     }
     const batch = files.slice(0, room).map((file) => ({
       file,
-      item: { id: localId(), name: file.name, pdf: false, preview: URL.createObjectURL(file), busy: true },
+      item: { id: localId(), name: file.name, pdf: false, preview: preview(file), busy: true },
     }));
     if (!batch.length) return;
     setDraft((d) => ({ ...d, photos: [...d.photos, ...batch.map((b) => b.item)] }));
@@ -869,16 +877,19 @@ export default function HostYourCar() {
         </p>
 
         <div className="mt-7 grid gap-3 sm:grid-cols-3">
+          {/* A row each on a phone, so the form is not a long scroll away; cards from tablet up. */}
           {STEPS.map((s, i) => (
-            <div key={s.title} className="panel p-4">
-              <div className="flex items-center gap-3">
+            <div key={s.title} className="panel flex items-start gap-3 p-3.5 sm:block sm:p-4">
+              <div className="flex shrink-0 items-center gap-3">
                 <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-500/15 text-brand-300">
                   <s.icon size={17} />
                 </span>
-                <span className="font-display text-2xl font-extrabold text-white/[0.08]">0{i + 1}</span>
+                <span className="hidden font-display text-2xl font-extrabold text-white/[0.08] sm:inline">0{i + 1}</span>
               </div>
-              <h2 className="mt-3 text-[14.5px]">{s.title}</h2>
-              <p className="mt-1 text-[12.5px] leading-relaxed text-slate-400">{s.body}</p>
+              <div>
+                <h2 className="text-[14px] sm:mt-3 sm:text-[14.5px]">{s.title}</h2>
+                <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-400 sm:mt-1">{s.body}</p>
+              </div>
             </div>
           ))}
         </div>

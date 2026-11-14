@@ -1,7 +1,7 @@
 # notify-telegram — booking alerts, fired by the database
 
-Posts a Telegram message the moment a booking, KYC submission or subscription
-row is inserted, and again when a booking changes: accepted, rejected,
+Posts a Telegram message the moment a booking, KYC submission, subscription or
+host application row is inserted, and again when a booking changes: accepted, rejected,
 cancelled, edited (car or dates), paid, handed over or received back — and when
 a KYC is re-submitted after a rejection. Every 15 minutes it also checks for
 cars past their return time that nobody has marked received, and alerts once
@@ -87,6 +87,12 @@ on under **Database → Extensions** (search "pg_cron") and run it again.
 **Already set this up before?** Run the script again and redeploy both
 functions (steps 4 and the `telegram-webhook` deploy below): the update alerts,
 the overdue check and the "Send T&C to customer" button are new.
+
+**Host applications.** The alert for a car offered on the website's
+`/host-your-car` page is attached by `supabase-host-your-car.sql` in the
+project root — run that script after the steps above, then redeploy this
+function (step 4) so it knows how to word the alert. Until it is redeployed,
+those rows are simply ignored.
 
 ---
 
