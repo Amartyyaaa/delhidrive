@@ -546,8 +546,9 @@ function ApplicationCard({ app, cover, onResubmit }) {
 
   return (
     <article className={cx('rounded-2xl border p-4 sm:p-5', view.box)} data-testid="host-application" data-status={app.status}>
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-ink-950">
+      {/* Photo above the details on a phone, beside them from tablet up. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <div className="h-40 w-full shrink-0 overflow-hidden rounded-xl border border-white/10 bg-ink-950 sm:h-20 sm:w-28">
           {cover ? (
             <img src={cover} alt="" className="h-full w-full object-cover" />
           ) : (
@@ -575,7 +576,7 @@ function ApplicationCard({ app, cover, onResubmit }) {
                 {i > 0 && <span className={cx('h-px w-4 sm:w-7', s.on ? 'bg-white/40' : 'bg-white/10')} />}
                 <span
                   className={cx(
-                    'rounded-full border px-2 py-0.5 font-medium',
+                    'whitespace-nowrap rounded-full border px-2 py-0.5 font-medium',
                     !s.on
                       ? 'border-white/10 text-slate-600'
                       : s.bad
