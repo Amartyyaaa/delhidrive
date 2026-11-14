@@ -462,6 +462,9 @@ function friendlyUpload(error) {
   if (/mime type/i.test(msg)) return 'Only JPG, PNG or PDF files can be uploaded.';
   if (/maximum allowed size|too large/i.test(msg)) return 'That file is too large — the limit is 10 MB.';
   if (/row-level security|unauthorized|jwt/i.test(msg)) return 'Your session expired — please sign in again.';
+  // What each browser says when the connection dropped mid-upload.
+  if (/failed to fetch|load failed|networkerror|network request failed/i.test(msg))
+    return 'Upload failed — check your connection and try again.';
   return msg;
 }
 

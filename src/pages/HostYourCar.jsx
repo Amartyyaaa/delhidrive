@@ -215,6 +215,8 @@ function HostAccountCard() {
         setError('You already have a DelhiDrive account with this email. Enter its password to sign in.');
       } else if (/invalid login credentials/i.test(msg)) {
         setError('That email and password do not match. Check them, or create an account instead.');
+      } else if (/email not confirmed/i.test(msg)) {
+        setError('Open the confirmation link we emailed you first, then sign in here.');
       } else {
         setError(msg);
       }

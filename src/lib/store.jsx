@@ -62,13 +62,24 @@ export function StoreProvider({ children }) {
           Promise.all(COUPONS_SEED.map((c) => setItem(COL.coupons, c.id, c))).catch(() => {});
         }
       }),
-      watchCollection(COL.bookings, setBookings),
-      watchCollection(COL.tickets, setTickets),
-      watchCollection(COL.kyc, setKycDocs),
       watchDoc(COL.settings, SETTINGS_DOC, (d) => setSettings(normaliseSettings(d))),
     ];
     return () => unsubs.forEach((u) => typeof u === 'function' && u());
   }, []);
+
+  // Bookings, tickets and KYC are different for each person, so they are read
+  // again whenever someone signs in or out. Read once at page load only, a
+  // returning customer's bookings and KYC stayed empty after signing in until
+  // they refreshed the page — and the last person's stayed in memory after
+  // they signed out.
+  useEffect(() => {
+    const unsubs = [
+      watchCollection(COL.bookings, setBookings),
+      watchCollection(COL.tickets, setTickets),
+      watchCollection(COL.kyc, setKycDocs),
+    ];
+    return () => unsubs.forEach((u) => typeof u === 'function' && u());
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Customer subscriptions are an operations concern; only the console reads them.
   useEffect(() => {
