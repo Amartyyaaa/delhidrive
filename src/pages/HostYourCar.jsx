@@ -638,6 +638,7 @@ export default function HostYourCar() {
   const [sent, setSent] = useState(null); // reference of the application just filed
   const [switchedOn, setSwitchedOn] = useState(true);
   const formRef = useRef(null);
+  const bodyRef = useRef(null);
   const draftOwner = useRef(null);
   const previews = useRef([]); // object URLs made for instant thumbnails
   const preview = (file) => {
@@ -702,6 +703,7 @@ export default function HostYourCar() {
   const urls = useFileUrls(fileRefs);
 
   const formOpen = Boolean(user) && (showForm || applications.length === 0);
+  const returning = Boolean(user) && (applications.length > 0 || Boolean(sent));
   // The "one last step" banner has done its job once that application is decided.
   const sentPending = sent && !myHostApplications.some((a) => a.ref === sent && a.status !== HOST_STATUS.pending);
   const pending = applications.filter((a) => a.status === HOST_STATUS.pending).length;
@@ -841,7 +843,7 @@ export default function HostYourCar() {
         type: 'success',
         tag: 'host-' + record.ref,
       });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      requestAnimationFrame(() => bodyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 
       const url = hostSubmittedWhatsappUrl();
       if (tab && !tab.closed) {
@@ -880,6 +882,10 @@ export default function HostYourCar() {
           and once yours is approved it goes live for renters on the DelhiDrive website and app.
         </p>
 
+        {/* How it works is for a first visit. Someone with an application has come
+            to see where it stands, so that goes straight under the heading. */}
+        {!returning && (
+        <>
         <div className="mt-7 grid gap-3 sm:grid-cols-3">
           {/* A row each on a phone, so the form is not a long scroll away; cards from tablet up. */}
           {STEPS.map((s, i) => (
@@ -906,9 +912,11 @@ export default function HostYourCar() {
             {MIN_CAR_PHOTOS}–{MAX_CAR_PHOTOS} clear photos of the car
           </span>
         </div>
+        </>
+        )}
       </header>
 
-      <div className="mt-8 space-y-6">
+      <div ref={bodyRef} className="mt-8 scroll-mt-24 space-y-6">
         {!switchedOn ? (
           <div className="panel mx-auto max-w-xl p-6 text-center" data-testid="host-closed">
             <Info size={22} className="mx-auto text-brand-300" />

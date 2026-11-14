@@ -116,7 +116,8 @@ export default function Copilot() {
         )}
       </button>
 
-      {nudge && !open && (
+      {/* The nudge is for renters choosing a car; on the host page it only covers the form. */}
+      {nudge && !open && !location.pathname.startsWith('/host-your-car') && (
         <button
           onClick={() => setOpen(true)}
           className="fixed bottom-[5.4rem] right-5 z-[80] max-w-[15rem] animate-fade-up rounded-2xl rounded-br-sm border border-white/10 bg-ink-900/95 px-3.5 py-2.5 text-left text-[12.5px] leading-snug text-slate-300 shadow-glow backdrop-blur-xl"
