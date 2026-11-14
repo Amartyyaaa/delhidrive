@@ -49,7 +49,10 @@ export function openFile(url) {
   let target = url;
   if (/^data:/i.test(url)) {
     const [head, body] = url.split(',');
-    const mime = head.match(/^data:([^;,]+)/i)?.[1] || 'application/octet-stream';
+    const mime = (head.match(/^data:([^;,]+)/i)?.[1] || '').toLowerCase();
+    // A blob opened from here runs as this site. Pictures and PDFs cannot run
+    // anything; a page or an SVG could, so nothing else is ever opened.
+    if (!/^(image\/(jpeg|png|webp|gif)|application\/pdf)$/.test(mime)) return;
     const binary = atob(body || '');
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);

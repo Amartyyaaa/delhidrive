@@ -506,7 +506,9 @@ export async function privateFileUrls(refs) {
 
   for (const ref of new Set((refs || []).filter(Boolean))) {
     if (isInlineFile(ref)) {
-      out[ref] = ref;
+      // Only the local store keeps files inline. With Supabase on, a record
+      // claiming to is not one of ours, and is not shown.
+      if (!supabaseReady) out[ref] = ref;
       continue;
     }
     const cached = linkCache.get(ref);
@@ -549,7 +551,7 @@ export async function privateFileUrls(refs) {
  * Only an admin's session is allowed to do either half of this.
  */
 export async function publishPrivateFile(ref, destKey) {
-  if (isInlineFile(ref) || !supabaseReady) return ref;
+  if (!supabaseReady) return ref;
 
   const parts = splitFileRef(ref);
   if (!parts) throw new Error('That photo could not be found.');

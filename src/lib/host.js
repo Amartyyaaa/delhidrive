@@ -8,6 +8,7 @@
 
 import { CATEGORIES, TRANSMISSIONS, FUELS } from '../data/fleet';
 import { SELF_PICKUP_HUB } from './pricing';
+import { supabaseReady } from './supabase';
 
 export const HOST_STATUS = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' };
 
@@ -255,6 +256,23 @@ export function draftFromApplication(app) {
     },
     photos: (app.photos || []).map((p, i) => file(p.ref, `Photo ${i + 1}`)).filter(Boolean),
     declared: false,
+  };
+}
+
+/**
+ * An application with only the files that are really its owner's — in the
+ * hosts bucket, under their own folder. The database refuses anything else
+ * when an application is filed; the console checks again before it shows or
+ * publishes a file, so a record that slipped past could never get someone
+ * else's document opened or put on a public listing.
+ */
+export function withOwnFiles(app) {
+  if (!supabaseReady) return app; // the local store keeps the files inline
+  const own = (ref) => typeof ref === 'string' && ref.startsWith(`hosts:${app.userId}/`);
+  return {
+    ...app,
+    photos: (app.photos || []).filter((p) => own(p?.ref)),
+    docs: Object.fromEntries(Object.entries(app.docs || {}).filter(([, ref]) => own(ref))),
   };
 }
 

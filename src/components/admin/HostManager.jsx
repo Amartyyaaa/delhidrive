@@ -41,6 +41,7 @@ import {
   plateKey,
   slab12h,
   toFleetCar,
+  withOwnFiles,
 } from '../../lib/host';
 import { CATEGORIES, TRANSMISSIONS, FUELS, TERRAINS } from '../../data/fleet';
 import { LOCATIONS } from '../../lib/pricing';
@@ -118,7 +119,9 @@ function FileTile({ refId, url, label, onOpen, className }) {
 }
 
 export default function HostManager() {
-  const { hostApplications, patchHostApplication, fleet, saveCar, removeCar, bookings } = useStore();
+  const { hostApplications: stored, patchHostApplication, fleet, saveCar, removeCar, bookings } = useStore();
+  // Everything below works from applications whose files have been checked.
+  const hostApplications = useMemo(() => stored.map(withOwnFiles), [stored]);
   const { user } = useAuth();
   const { toast, push } = useNotify();
   const who = user?.email || 'admin';
@@ -257,6 +260,7 @@ export default function HostManager() {
         reviewedBy: who,
         listedAt: Date.now(),
         rejectionReason: '',
+        delistedAt: null,
       });
 
       push('Car approved · now live', `${listing.name} · ${inr(rate)}/day is on the website and the app.`, {
@@ -264,7 +268,7 @@ export default function HostManager() {
       });
       setApproving(null);
       setOpenId(null);
-      setToldAbout({ id: app.id, decided: { status: HOST_STATUS.approved, rejectionReason: '' } });
+      setToldAbout({ id: app.id, decided: { status: HOST_STATUS.approved, rejectionReason: '', delistedAt: null } });
     } catch (err) {
       console.error(err);
       toast(err.message || 'Could not publish this car. Nothing was changed — try again.', { type: 'error' });
@@ -286,13 +290,14 @@ export default function HostManager() {
       // Take the listing down first: if the second step fails the car is at
       // least no longer public, and pressing the button again finishes the job.
       if (app.fleetId && listingOf(app)) await removeCar(app.fleetId);
+      const delistedAt = rejecting.delist ? Date.now() : null;
       await patchHostApplication(app.id, {
         status: HOST_STATUS.rejected,
         rejectionReason: why,
         reviewedAt: Date.now(),
         reviewedBy: who,
         fleetId: '',
-        ...(rejecting.delist ? { delistedAt: Date.now() } : {}),
+        delistedAt,
       });
       push(
         rejecting.delist ? 'Car taken off DelhiDrive' : 'Application rejected',
@@ -301,7 +306,7 @@ export default function HostManager() {
       );
       setRejecting(null);
       setOpenId(null);
-      setToldAbout({ id: app.id, decided: { status: HOST_STATUS.rejected, rejectionReason: why } });
+      setToldAbout({ id: app.id, decided: { status: HOST_STATUS.rejected, rejectionReason: why, delistedAt } });
     } catch (err) {
       toast(err.message || 'Could not update this application.', { type: 'error' });
     } finally {

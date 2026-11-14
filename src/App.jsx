@@ -91,7 +91,7 @@ function HostDecisionNotifier() {
         });
       } else {
         push(
-          'Your host application was not approved',
+          app.delistedAt ? 'Your car is no longer listed on DelhiDrive' : 'Your host application was not approved',
           `${carTitle(app)}: ${app.rejectionReason || 'see the details on the Host your car page'}.`,
           { type: 'warning', tag: 'host-' + app.ref, ttl: 12000 }
         );

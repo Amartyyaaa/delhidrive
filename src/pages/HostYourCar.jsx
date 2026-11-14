@@ -528,13 +528,17 @@ const STATUS_VIEW = {
 };
 
 function ApplicationCard({ app, cover, onResubmit }) {
-  const view = STATUS_VIEW[app.status] || STATUS_VIEW[HOST_STATUS.pending];
+  // A car that was live and has since been taken down is not "not approved".
+  const delisted = app.status === HOST_STATUS.rejected && Boolean(app.delistedAt);
+  const view = delisted
+    ? { ...STATUS_VIEW[HOST_STATUS.rejected], label: 'No longer listed', note: 'This car has been taken off DelhiDrive.' }
+    : STATUS_VIEW[app.status] || STATUS_VIEW[HOST_STATUS.pending];
   const done = app.status !== HOST_STATUS.pending;
   const stages = [
     { label: 'Submitted', on: true },
     { label: 'Under review', on: true },
     {
-      label: app.status === HOST_STATUS.rejected ? 'Not approved' : 'Live',
+      label: delisted ? 'Taken down' : app.status === HOST_STATUS.rejected ? 'Not approved' : 'Live',
       on: done,
       bad: app.status === HOST_STATUS.rejected,
     },
@@ -598,7 +602,7 @@ function ApplicationCard({ app, cover, onResubmit }) {
             )}
             {app.status === HOST_STATUS.rejected && (
               <Button size="sm" icon={RotateCcw} onClick={() => onResubmit(app)}>
-                Fix and send again
+                {delisted ? 'Apply again' : 'Fix and send again'}
               </Button>
             )}
             <Button

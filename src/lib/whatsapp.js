@@ -155,6 +155,19 @@ export function hostDecisionMessage(app) {
     ].join('\n');
   }
 
+  if (app.delistedAt) {
+    return [
+      '*DELHIDRIVE — LISTING UPDATE*',
+      '',
+      `Hi ${first}, your ${car} is no longer listed on DelhiDrive.`,
+      '',
+      `Reason: ${app.rejectionReason || 'not specified'}`,
+      '',
+      `You can apply again here: ${SITE_URL}/host-your-car`,
+      `Application: ${app.ref}`,
+    ].join('\n');
+  }
+
   return [
     '*DELHIDRIVE — HOST APPLICATION UPDATE*',
     '',
